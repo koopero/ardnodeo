@@ -4,12 +4,14 @@ module.exports = {
     Null: 0,
     PinMode: 1,
     DigitalWrite: 2,
-    AnalogWrite: 3
+    AnalogWrite: 3,
+    MemWrite: 4,
+    setOptions: 5
   },
 
   Return: {
   	Boot: 1,
-  	Heartbeat: 2,
+  	Tick: 2,
   	AnalogRead: 4
   },
 
@@ -17,6 +19,10 @@ module.exports = {
     Output: 0,
     Input: 1,
     InputPullup: 2
+  },
+
+  Options: {
+    Tick: 2 
   }
   
 }

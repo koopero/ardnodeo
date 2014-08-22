@@ -3,23 +3,34 @@ var Convert = require('./Convert');
 
 var util = require('util');
 
-util.inherits( Serduino, require('events').EventEmitter );
+util.inherits( Ardnodeo, require('events').EventEmitter );
 
 var newLine = '\r\n';
 
 
 
-function Serduino ( opt ) {
+function Ardnodeo ( opt ) {
 	var self = this;
 
 	var _serial,
 		_serialIsOpen = false,
 		_serialOutBuffer = new Buffer(0),
 		_serialInLine,
-		_receiveQueue = [];
+		_receiveQueue = [],
+		_variables = Object.create( null );
 
+
+	self.vars = _variables;
+	self.offsets = [];
 
 	_initSerial();
+
+	self.close = close;
+	function close ( ) {
+		setTick( false );
+		//_serial.close();
+	}
+
 
 	function _initSerial( ) {
 		var SerialPort = require("serialport").SerialPort;
@@ -27,6 +38,7 @@ function Serduino ( opt ) {
 		_serial = new SerialPort( opt.port, opt );
 		_serial.on('data', _onSerialData );
 		_serial.on('open', _onSerialOpen );
+		//_serial.on('error', _onSerialError );
 	}
 
 	function _onSerialData ( data ) {
@@ -90,10 +102,12 @@ function Serduino ( opt ) {
 
 	function _onSerialReturn ( command ) {
 		var arg0 = command & 15;
-		command = (command & 120) >> 4;
+		command = (command & 120) >> 3;
 		//console.log( "Got command", command );
 		switch ( command ) {
-
+			case Protocol.Return.Tick:
+				self.emit('tick', arg0 );
+			break;
 		}
 	}
 
@@ -106,9 +120,13 @@ function Serduino ( opt ) {
 		}
 	}
 
+	function _onSerialError( error ) {
+		console.warn( "Serial Error", error );
+	}
+
 	function _writeSerial ( buffer ) {
 		if ( _serialIsOpen ) {
-			console.warn ( "Writing", buffer );
+			//_debug( "_writeSerial", buffer );
 			_serial.write( buffer );
 		} else {
 			_serialOutBuffer = Buffer.concat( [ _serialOutBuffer, buffer ] );
@@ -135,26 +153,84 @@ function Serduino ( opt ) {
 		};
 	}
 
-	var commandsOb = self;
+	var commands = self;
 
-	commandsOb.pinMode = function ( pin, mode ) {
+	commands.pinMode = function ( pin, mode ) {
 		pin = parseInt( pin );
 		mode = parseInt( mode );
 		_sendCommand( Protocol.Command.PinMode, mode, pin );
 	}
 
-	commandsOb.digitalWrite = function ( pin, value ) {
+	commands.digitalWrite = function ( pin, value ) {
 		_sendCommand( Protocol.Command.DigitalWrite, value ? 1 : 0, pin );
 	}
 
-	commandsOb.analogWrite = function ( pin, value ) {
+	commands.analogWrite = function ( pin, value ) {
 		value = Convert.NumberToUint8( value );
 		_sendCommand( Protocol.Command.AnalogWrite, 0, pin, value );
 	}
 
-	commandsOb.analogRead = function ( pin, callback ) {
+	commands.analogRead = function ( pin, callback ) {
 
 	}
+
+	commands.setTick = setTick; 
+	function setTick ( v ) {
+		_sendCommand( Protocol.Command.setOptions, 0, v ? Protocol.Options.Tick : 0 );
+	}
+
+	commands.memWrite = memWrite;
+	function memWrite ( offset, buffer ) {
+
+		if ( buffer.length <= 0 )
+			return;
+
+		var size = buffer.length;
+
+		size = size > 255 ? 255 : size;
+
+		_sendCommand( Protocol.Command.MemWrite, 0 );
+		_writeSerial( Convert.Uint16ToBuffer( offset ) );
+		_writeSerial( Convert.Uint8ToBuffer( size ) );
+		
+
+		
+		if ( size < buffer.length ) {
+			_writeSerial( buffer.slice( 0, size ) );
+			return commands.memWrite( offset + size, buffer.slice( size ) );
+		} else {
+			_writeSerial( buffer );
+		}
+	}
+
+	commands.varConfig = function ( varName, opt ) {
+		if ( 'string' != typeof varName )
+			throw new TypeError ( 'Invalid var name' );
+
+		if ( opt == null ) {
+			delete _variables[varName];
+			return;
+		}
+
+		if ( 'number' != typeof opt.offset )
+			throw new TypeError ( 'Invalid or unspecified offset' );
+
+		if ( 'object' != typeof opt.type )
+			throw new TypeError ( 'Invalid or unspecified type' );
+
+		_variables[varName] = opt;
+		opt.write = varWrite.bind( self, varName );
+	}
+
+	commands.varWrite = varWrite;
+	function varWrite ( varName, value ) {
+		var variable = _variables[varName];
+		if ( !variable )
+			throw new Error( 'Variable not found' );
+
+		var buffer = variable.type.toBuffer( value );
+		memWrite( variable.offset, buffer );
+	} 
 
 	self.Protocol = Protocol;
 
@@ -162,7 +238,7 @@ function Serduino ( opt ) {
 
 
 
-module.exports = Serduino;
+module.exports = Ardnodeo;
 
 
 
