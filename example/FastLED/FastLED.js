@@ -1,32 +1,32 @@
 var Ardnodeo = require('../../js/index');
 var Convert = Ardnodeo.Convert;
-
-var ard = new Ardnodeo ( {
-  port: "/dev/tty.usbmodem1d151"
-});
+var onecolor = require('onecolor');
 
 
+var ard = Ardnodeo.Bootstrap();
+ard.source( "FastLED.ino" );
 ard.setTick( true );
+
+ard.varWrite( 'leds', 'green' );
 
 require( '../../js/Prompt' )( ard );
 
 
 
 //setInterval( tick, 100 );
+var colour = new onecolor( "red" );
 
-var NUM_LEDS = 80; 
+var NUM_LEDS = ard.define.NUM_LEDS; 
 
-var phase = Math.random() * 1000;
-//tick();
+var phase
+tick();
 function tick () {
+	if ( phase === undefined ) phase = Math.random() * 1000;
 	phase += 0.01;
-		var c = 0,
-			r = Math.cos( phase * 0.6 + c * 6 ),
-			g = Math.cos( phase * 1.6 + c * 4 ),
-			b = Math.cos( phase * 2.6 + c * 3 );
 
-	var offset = Math.floor( Math.random() * NUM_LEDS ) * 3;
-	ard.memWrite( offset, Convert.HSVToBuffer( phase % 1, Math.random(), Math.random() ) );
+	var colour = new onecolor.HSV( phase % 1, Math.random(), Math.random() );
+	var index = Math.floor( Math.random() * NUM_LEDS );
+	ard.varWrite( 'leds', colour );
 }
 
 var phase = 0;

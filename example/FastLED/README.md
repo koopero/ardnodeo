@@ -1,0 +1,1 @@
+This example uses Ardnodeo to control a string of addressable LEDs using (FastLED)[http://fastled.io]. It also demostrates how the generation of an effect can be shared between node and arduino code. 

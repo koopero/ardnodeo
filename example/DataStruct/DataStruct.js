@@ -1,11 +1,9 @@
 var Ardnodeo = require('../../js/index');
-
-
-var LED_PIN = 13;
-
-var ard = new Ardnodeo ( {
-  port: "/dev/tty.usbmodem1d161"
+var ard = Ardnodeo.Bootstrap( function ( err, arduino ) {
+	arduino.source( 'DataStruct.ino' );
 });
+
+
 
 ard.on('line', function ( line ) {
 	console.log( "----", line );

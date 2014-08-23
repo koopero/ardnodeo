@@ -46,15 +46,8 @@ function Clamp10ToBuffer ( v ) {
 	return Uint8ToBuffer( NumberToClamp10 ( v ) );
 }
 
-exports.HSVToBuffer = function HSVToBuffer() {
-	var c = new onecolor.HSV(0,0,0);
-
-	onecolor.HSV.apply( c, arguments );
-	return ColourToBuffer( c );
-}
-
-exports.ColourToBuffer = ColourToBuffer;
-function ColourToBuffer ( c ) {
+exports.ColourToRGBBuffer = ColourToRGBBuffer;
+function ColourToRGBBuffer ( c ) {
 	c = onecolor( c );
 
 	if ( !c ) 

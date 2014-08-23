@@ -49,6 +49,8 @@ protected:
 
 	bool lastReadOkay;
 
+	void sendMem( void * offset, size_t size );
+
 	void sendReturn ( unsigned char commandId, unsigned char arg = 0 );
 	void sendByte ( unsigned char byte );
 };

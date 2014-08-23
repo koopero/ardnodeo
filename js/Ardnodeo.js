@@ -1,5 +1,8 @@
 var Protocol = require('./Protocol');
 var Convert = require('./Convert');
+var _ = require('underscore');
+
+var async = require('async');
 
 var util = require('util');
 
@@ -23,19 +26,62 @@ function Ardnodeo ( opt ) {
 	self.vars = _variables;
 	self.offsets = [];
 
-	_initSerial();
+	opt = opt || {};
+
+	if ( opt.serial ) {
+		setSerial( opt.serial );
+	}
 
 	self.close = close;
-	function close ( ) {
+	function close ( cb ) {
+
 		setTick( false );
+
+		console.log( "Closing time" );
+		if ( _serial ) {
+			async.series( [ 
+				_serial.drain.bind( _serial ),
+				_serial.flush.bind( _serial ),
+				_serial.close.bind( _serial )
+			], function () {
+				_serial = null;
+				cb;
+			} );
+		} else {
+			cb( new Error( "Already closed" ) );
+		}
+		
 		//_serial.close();
 	}
 
 
-	function _initSerial( ) {
+	self.source = sourceFile;
+	function sourceFile ( file ) {
+		var Source = require('./Source');
+		var parsed = Source.file( file );
+
+		self.define = parsed.define;
+
+		_.map( parsed.vars, function ( v, name ) {
+			varConfig( name, v );
+		});
+	}
+
+
+	self.setSerial = setSerial;
+	function setSerial( serial ) {
+		if ( _serial ) {
+			throw new Error( "Serial already set" );
+		}
+
 		var SerialPort = require("serialport").SerialPort;
 
-		_serial = new SerialPort( opt.port, opt );
+		if ( serial instanceof SerialPort ) {
+			_serial = serial;
+		} else {
+			_serial = new SerialPort( serial.port, serial );
+		}
+		
 		_serial.on('data', _onSerialData );
 		_serial.on('open', _onSerialOpen );
 		//_serial.on('error', _onSerialError );
@@ -125,22 +171,26 @@ function Ardnodeo ( opt ) {
 	}
 
 	function _writeSerial ( buffer ) {
-		if ( _serialIsOpen ) {
+		if ( _serial && _serialIsOpen ) {
 			//_debug( "_writeSerial", buffer );
 			_serial.write( buffer );
 		} else {
+			if ( !_serialOutBuffer )
+				_serialOutBuffer = new Buffer (0);
 			_serialOutBuffer = Buffer.concat( [ _serialOutBuffer, buffer ] );
 		}
 	}
 
 	function _sendCommand ( command, arg0 ) {
+
+		var numArgs = Math.max( 0, arguments.length - 2 );
 		var firstByte = (( command & 0xf ) << 4 ) | ( arg0 & 0xf );
-		var buf = new Buffer( arguments.length - 1 );
+		var buf = new Buffer( 1 + numArgs );
 		buf[0] = firstByte;
 		
 
-		for ( var i = 2; i < arguments.length; i ++ ) {
-			buf[i-1] = parseInt( arguments[i] ) & 0xff;
+		for ( var i = 0; i < numArgs; i ++ ) {
+			buf[i+1] = parseInt( arguments[i + 2] ) & 0xff;
 		}
 		_writeSerial( buf );
 
@@ -176,7 +226,7 @@ function Ardnodeo ( opt ) {
 
 	commands.setTick = setTick; 
 	function setTick ( v ) {
-		_sendCommand( Protocol.Command.setOptions, 0, v ? Protocol.Options.Tick : 0 );
+		_sendCommand( Protocol.Command.setFlags, 0, v ? Protocol.Options.Tick : 0 );
 	}
 
 	commands.memWrite = memWrite;
@@ -203,7 +253,8 @@ function Ardnodeo ( opt ) {
 		}
 	}
 
-	commands.varConfig = function ( varName, opt ) {
+	commands.varConfig = varConfig;
+	function varConfig ( varName, opt ) {
 		if ( 'string' != typeof varName )
 			throw new TypeError ( 'Invalid var name' );
 
@@ -229,7 +280,38 @@ function Ardnodeo ( opt ) {
 			throw new Error( 'Variable not found' );
 
 		var buffer = variable.type.toBuffer( value );
-		memWrite( variable.offset, buffer );
+
+		if ( !buffer )
+			throw new Error( "Problem converting "+String(value) );
+
+		var dims = variable.dims;
+		if ( dims && dims.length ) {
+			var indexes = _.toArray( arguments ).slice( 2 );
+
+			setDimension( 0, variable.offset, variable.type.size );
+
+			function setDimension( d, offset, stride ) {
+				var isLeaf = d == dims.length;
+
+				//console.warn ( "setDimension", d, offset, stride )
+
+				if ( isLeaf ) {
+					memWrite( offset, buffer )
+				} else {
+					var dim = dims[d];
+					var index = parseInt( indexes[d] );
+					if ( isNaN( index ) ) {
+						for ( index = 0; index < dim; index ++ ) 
+							setDimension( d + 1, offset + stride * index, stride * dim );
+					} else {
+						setDimension( d + 1, offset + stride * index, stride * dim );
+					}
+				}
+			}
+
+		} else {
+			memWrite( variable.offset, buffer );
+		}
 	} 
 
 	self.Protocol = Protocol;

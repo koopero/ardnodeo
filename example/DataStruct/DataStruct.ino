@@ -12,15 +12,17 @@
 #include <Ardnodeo.h>
 
 #define LED_PIN 13
+#define NUM_LEDS 30
 
 Ardnodeo node = Ardnodeo();
 bool ledState = false;
 
 struct test_data {
-	//!BEGIN_ARDNODEO_STRUCT
+	//#ARDNODEO_VARS
 	unsigned short delay;
-	unsigned char intensity;
-	//!END_ARDNODEO_STRUCT
+	float floats[NUM_LEDS];
+	unsigned char intensity [ 3 ][ 4];
+	//#/ARDNODEO_VARS
 } testData;
 
 

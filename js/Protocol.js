@@ -6,7 +6,7 @@ module.exports = {
     DigitalWrite: 2,
     AnalogWrite: 3,
     MemWrite: 4,
-    setOptions: 5
+    setFlags: 5
   },
 
   Return: {
