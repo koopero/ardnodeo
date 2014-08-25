@@ -15,7 +15,7 @@ function Prompt( ard ) {
 		ard.close();
 	});
 
-	_.extend( prompt.context, Ardnodeo, ard );
+	_.extend( prompt.context, Ardnodeo, ard, { a: ard } );
 
 	prompt.context.help = function () {
 		console.log( "Help?");

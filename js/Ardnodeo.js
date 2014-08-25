@@ -1,5 +1,6 @@
 var Protocol = require('./Protocol');
 var Convert = require('./Convert');
+var Regulator = require('./Regulator');
 var _ = require('underscore');
 
 var async = require('async');
@@ -15,16 +16,28 @@ var newLine = '\r\n';
 function Ardnodeo ( opt ) {
 	var self = this;
 
-	var _serial,
-		_serialIsOpen = false,
-		_serialOutBuffer = new Buffer(0),
+	// Protected variables
+	var 
+		_serial,
+		_serialWrite,
 		_serialInLine,
 		_receiveQueue = [],
-		_variables = Object.create( null );
+		status = {},
+		_variables = Object.create( null ),
+		outputRegulator = new Regulator( 10000 ),
+		serialBufferSize = 60
+	;
 
 
 	self.vars = _variables;
 	self.offsets = [];
+	self.close = close;
+	self.source = sourceFile;
+	self.setSerial = setSerial;
+	self.status = status;
+
+
+	self.outputRegulator = outputRegulator;
 
 	opt = opt || {};
 
@@ -32,7 +45,7 @@ function Ardnodeo ( opt ) {
 		setSerial( opt.serial );
 	}
 
-	self.close = close;
+	
 	function close ( cb ) {
 
 		setTick( false );
@@ -55,7 +68,7 @@ function Ardnodeo ( opt ) {
 	}
 
 
-	self.source = sourceFile;
+	
 	function sourceFile ( file ) {
 		var Source = require('./Source');
 		var parsed = Source.file( file );
@@ -68,7 +81,7 @@ function Ardnodeo ( opt ) {
 	}
 
 
-	self.setSerial = setSerial;
+	
 	function setSerial( serial ) {
 		if ( _serial ) {
 			throw new Error( "Serial already set" );
@@ -147,53 +160,82 @@ function Ardnodeo ( opt ) {
 	}
 
 	function _onSerialReturn ( command ) {
-		var arg0 = command & 15;
+		
+		var arg0 = command & 7;
 		command = (command & 120) >> 3;
-		//console.log( "Got command", command );
+
 		switch ( command ) {
 			case Protocol.Return.Tick:
 				self.emit('tick', arg0 );
+
+
+			case 5 :
+				outputRegulator.allow = serialBufferSize;
+				flushOutput();
 			break;
 		}
 	}
 
 	function _onSerialOpen () {
-		console.warn( "Serial open" );
-		_serialIsOpen = true;
-		if ( _serialOutBuffer && _serialOutBuffer.length ) {
-			_serial.write( _serialOutBuffer );
-			_serialOutBuffer = null;
-		}
+		status.serialOpen = true;
+		_serialWrite = _serial.write.bind( _serial );
+		flushOutput ();
 	}
 
 	function _onSerialError( error ) {
 		console.warn( "Serial Error", error );
 	}
 
-	function _writeSerial ( buffer ) {
-		if ( _serial && _serialIsOpen ) {
-			//_debug( "_writeSerial", buffer );
-			_serial.write( buffer );
-		} else {
-			if ( !_serialOutBuffer )
-				_serialOutBuffer = new Buffer (0);
-			_serialOutBuffer = Buffer.concat( [ _serialOutBuffer, buffer ] );
+
+	function packOutput () {
+		var buffers = [];
+
+		for ( var i = 0; i < arguments.length; i++ ) {
+			var arg = arguments[i];
+			var buffer;
+			if ( arg instanceof Buffer )
+				buffer = arg;
+			else if ( 'number' == typeof arg ) {
+				buffer = new Buffer( 1 )
+				buffer[1] = arg;
+			} else if ( 'string' == typeof arg ) {
+				buffer = new Buffer( arg, 'ascii' );
+			} else
+				throw new Error( "bad input" );
+
+			buffers.push( buffer );
 		}
+
+		return Buffer.concat( buffers );
 	}
 
-	function _sendCommand ( command, arg0 ) {
+	function queueOutput ( buffer ) {
+		outputRegulator.push( buffer );
+		flushOutput();
+	}
+
+	function flushOutput () {
+		if ( !_serialWrite ) {
+			status.writeError = true;
+			return false;
+		}
+
+		status.writeError = false;
+		
+		var result = outputRegulator.write( _serialWrite );
+		status.bufferFull = !result;
+	}
+
+	function packCommand ( command, arg0 ) {
+		if ( !command )
+			throw new Error( 'Invalid command' );
 
 		var numArgs = Math.max( 0, arguments.length - 2 );
 		var firstByte = (( command & 0xf ) << 4 ) | ( arg0 & 0xf );
-		var buf = new Buffer( 1 + numArgs );
+		var buf = new Buffer( 1 );
 		buf[0] = firstByte;
 		
-
-		for ( var i = 0; i < numArgs; i ++ ) {
-			buf[i+1] = parseInt( arguments[i + 2] ) & 0xff;
-		}
-		_writeSerial( buf );
-
+		return buf;
 	}
 
 	function _receiveBytes ( length, cb ) {
@@ -208,16 +250,27 @@ function Ardnodeo ( opt ) {
 	commands.pinMode = function ( pin, mode ) {
 		pin = parseInt( pin );
 		mode = parseInt( mode );
-		_sendCommand( Protocol.Command.PinMode, mode, pin );
+		queueOutput( packOutput( 
+			packCommand( Protocol.pinMode, mode ),
+			pin
+		) );
 	}
 
 	commands.digitalWrite = function ( pin, value ) {
-		_sendCommand( Protocol.Command.DigitalWrite, value ? 1 : 0, pin );
+		queueOutput( packOutput( 
+			packCommand( Protocol.Command.DigitalWrite, value ? 1 : 0 ),
+			pin
+		) );
 	}
 
 	commands.analogWrite = function ( pin, value ) {
 		value = Convert.NumberToUint8( value );
-		_sendCommand( Protocol.Command.AnalogWrite, 0, pin, value );
+
+		queueOutput( packOutput( 
+			packCommand( Protocol.Command.AnalogWrite ),
+			pin,
+			value
+		) );
 	}
 
 	commands.analogRead = function ( pin, callback ) {
@@ -226,30 +279,21 @@ function Ardnodeo ( opt ) {
 
 	commands.setTick = setTick; 
 	function setTick ( v ) {
-		_sendCommand( Protocol.Command.setFlags, 0, v ? Protocol.Options.Tick : 0 );
+		queueOutput( packOutput( 
+			packCommand( Protocol.setFlags, v ? Protocol.Options.Tick : 0 )
+		) );
 	}
 
 	commands.memWrite = memWrite;
 	function memWrite ( offset, buffer ) {
-
-		if ( buffer.length <= 0 )
-			return;
-
-		var size = buffer.length;
-
-		size = size > 255 ? 255 : size;
-
-		_sendCommand( Protocol.Command.MemWrite, 0 );
-		_writeSerial( Convert.Uint16ToBuffer( offset ) );
-		_writeSerial( Convert.Uint8ToBuffer( size ) );
-		
-
-		
-		if ( size < buffer.length ) {
-			_writeSerial( buffer.slice( 0, size ) );
-			return commands.memWrite( offset + size, buffer.slice( size ) );
-		} else {
-			_writeSerial( buffer );
+		while ( buffer.length ) {
+			size = buffer.length > 16 ? 16 : buffer.length;
+			queueOutput( packOutput( 
+				packCommand( Protocol.poke, size - 1 ),
+				Convert.uint16ToBuffer( offset ),
+				buffer.slice( 0, size )
+			) );
+			buffer = buffer.slice( size );
 		}
 	}
 
@@ -312,7 +356,13 @@ function Ardnodeo ( opt ) {
 		} else {
 			memWrite( variable.offset, buffer );
 		}
-	} 
+	}
+
+
+	commands.reset = reset;
+	function reset () {
+		_sendCommand( Protocol.Command.reset, 0 );
+	}	 
 
 	self.Protocol = Protocol;
 

@@ -17,95 +17,107 @@ void Ardnodeo::tick() {
     sendReturn( Protocol::Tick );
 }
 
-int Ardnodeo::receive() {
-  int commandsProcessed = 0;
+void Ardnodeo::receive() {
+  int commandsProcessed;
 
-  while ( Serial.available() ) {
-    unsigned char command = Serial.read();
-    
-    // Bottom nibble is arg0
-    unsigned char arg0 = command & 0xf;
+  do { 
+    commandsProcessed = 0;
 
-    // Top nibble of command is actual command
-    command = command >> 4;
+    while ( Serial.available() ) {
+      uint8_t command = Serial.read();
+      
+      // Bottom nibble is arg0
+      uint8_t arg0 = command & 0xf;
 
-    //Serial.println("Got command");
-    //Serial.println(command, DEC );
+      // Top nibble of command is actual command
+      command = command >> 4;
 
-    switch ( command ) {
-      case Protocol::PinMode :
-      {
-        unsigned char pinId = Serial.read();
-        switch ( arg0 ) {
-          case Protocol::Output:       pinMode( pinId, OUTPUT ); break;
-          case Protocol::Input:        pinMode( pinId, INPUT ); break;
-          case Protocol::InputPullup:  pinMode( pinId, INPUT_PULLUP ); break;
+      //Serial.println("Got command");
+      //Serial.println(command, DEC );
+
+      switch ( command ) {
+        case Protocol::PinMode :
+        {
+          uint8_t pinId = Serial.read();
+          switch ( arg0 ) {
+            case Protocol::Output:       pinMode( pinId, OUTPUT ); break;
+            case Protocol::Input:        pinMode( pinId, INPUT ); break;
+            case Protocol::InputPullup:  pinMode( pinId, INPUT_PULLUP ); break;
+          }
+          commandsProcessed ++;
         }
-        commandsProcessed ++;
+        break;
+
+        case Protocol::DigitalWrite :
+        {
+          uint8_t pinId = readByte();
+          digitalWrite( pinId, arg0 ? HIGH : LOW );
+
+          commandsProcessed ++;
+        }
+        break;
+
+        case Protocol::AnalogWrite :
+        {
+          uint8_t pinId = readByte();
+          uint8_t value = readByte();
+
+          analogWrite( pinId, value );
+
+          commandsProcessed ++;
+        }
+        break;
+
+        case Protocol::MemWrite :
+        {
+          uint16_t offset = readUnsignedShort();
+          if ( !lastReadOkay )
+            break;
+
+          uint8_t size = arg0 + 1;
+          char * p = (char*)((int) data + (int) offset);
+
+          /*
+          Serial.println("Offset");
+          Serial.println(offset, DEC );
+          
+          Serial.println("Size");
+          Serial.println(size, DEC );
+          */
+
+          Serial.readBytes( p, size );
+          commandsProcessed ++;
+        }
+        break;
+
+        case Protocol::setOptions :
+        {
+          uint8_t newOptions = readByte();
+          if ( lastReadOkay )
+            options = newOptions;
+        }
+        break;
+
+        case Protocol::reset :
+        {
+          resetFunc();
+        }
+        break;
+
       }
-      break;
+    };
 
-      case Protocol::DigitalWrite :
-      {
-        unsigned char pinId = readByte();
-        digitalWrite( pinId, arg0 ? HIGH : LOW );
+    if ( commandsProcessed )
+      sendReturn( Protocol::status, Protocol::received );
 
-        commandsProcessed ++;
-      }
-      break;
+    delay( 2 );
 
-      case Protocol::AnalogWrite :
-      {
-        unsigned char pinId = readByte();
-        unsigned char value = readByte();
-
-        analogWrite( pinId, value );
-
-        commandsProcessed ++;
-      }
-      break;
-
-      case Protocol::MemWrite :
-      {
-        unsigned short offset = readUnsignedShort();
-        if ( !lastReadOkay )
-          break;
-
-        unsigned char size = readByte();
-        if ( !lastReadOkay )
-          break;
-        
-        char * p = (char*)((int) data + (int) offset);
-
-        /*
-        Serial.println("Offset");
-        Serial.println(offset, DEC );
-        
-        Serial.println("Size");
-        Serial.println(size, DEC );
-        */
-
-        Serial.readBytes( p, size );
-
-      }
-      break;
-
-      case Protocol::setOptions :
-      {
-        uint8_t newOptions = readByte();
-        if ( lastReadOkay )
-          options = newOptions;
-      }
-
-    }
-  };
-
-  return commandsProcessed;
+  } while ( commandsProcessed );
 }
 
 
 
-void Ardnodeo::sendReturn( unsigned char cmd, unsigned char arg ) {
+void Ardnodeo::sendReturn( uint8_t cmd, uint8_t arg ) {
   sendByte( 
     128 |  // All returns have top bit set
     ( ( cmd & 0xf ) << 3 ) |
@@ -114,7 +126,7 @@ void Ardnodeo::sendReturn( unsigned char cmd, unsigned char arg ) {
 }
 
 
-inline void Ardnodeo::sendByte( unsigned char byte ) {
+inline void Ardnodeo::sendByte( uint8_t byte ) {
   Serial.write( byte );
 }
 

@@ -28,8 +28,8 @@ function Uint8ToBuffer ( v ) {
 	return buffer;
 }
 
-exports.Uint16ToBuffer = Uint16ToBuffer;
-function Uint16ToBuffer ( v ) {
+exports.uint16ToBuffer = uint16ToBuffer;
+function uint16ToBuffer ( v ) {
 	v = Math.floor( v ) & 0xffff;
 	var buffer = new Buffer( 2 );
 	buffer.writeUInt16LE( v, 0 );

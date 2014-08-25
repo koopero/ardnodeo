@@ -1,19 +1,11 @@
-
-    [  ]  Command
-[  ]      Arg1
-00000000
-
-
-Command - Recieve
-
-0x0 - NULL
-0x1 - Set Struct Memory ( Data Length, bytes )
-0x2 - Set Digital Pin Mode ( Pin Mode, Pin Index )
-0x3 - Set Analog Pin Mode ( Pin Mode, Pin Index )
-0x4 - Set
-
-
-Command - Send
-0x0 - NULL
-0x1 - Booted
-0x2 - Report Digital ( )
+Command,Upper Nibble,Lower Nibble,Byte 1,Byte 2,Byte 3,Etc
+pinMode,1,"0 OUTPUT
+1 INPUT
+2 INPUT_PULLUP",,,,
+digitalWrite,2,"0 LOW
+1 HIGH",pinId,,,
+analogWrite,3,,pinId,,,
+memWrite,4,,,,,
+setFlags,5,2 TICK,,,,
+poke,,data size in bytes,memory offset,,,data up to size
+pokeFar,,data size in bytes,memory offset 0,memory offset 1,,data up to size

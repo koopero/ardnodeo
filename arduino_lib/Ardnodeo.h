@@ -9,7 +9,7 @@ public:
 
 	void setup();
 	void update();
-	int receive ();
+	void receive ();
 	void tick ();
 
 	void * data;
@@ -23,13 +23,15 @@ public:
 			DigitalWrite = 2,
 			AnalogWrite = 3,
 			MemWrite = 4,
-			setOptions = 5
+			setOptions = 5,
+			reset = 6
 		};
 
 		enum ReturnCommand {
 			Boot = 1,
 			Tick = 2,
-			AnalogRead = 4
+			AnalogRead = 4,
+			status = 5
 		};
 
 		enum PinMode {
@@ -38,8 +40,8 @@ public:
 			InputPullup = 2
 		};
 
-		enum Options {
-
+		enum Status {
+			received = 1 
 		};
 	};
 
@@ -53,6 +55,9 @@ protected:
 
 	void sendReturn ( unsigned char commandId, unsigned char arg = 0 );
 	void sendByte ( unsigned char byte );
+
+	void(* resetFunc) (void) = 0;
+	
 };
 
 

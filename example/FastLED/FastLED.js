@@ -18,7 +18,7 @@ var colour = new onecolor( "red" );
 
 var NUM_LEDS = ard.define.NUM_LEDS; 
 
-var phase
+var phase;
 tick();
 function tick () {
 	if ( phase === undefined ) phase = Math.random() * 1000;
@@ -26,7 +26,7 @@ function tick () {
 
 	var colour = new onecolor.HSV( phase % 1, Math.random(), Math.random() );
 	var index = Math.floor( Math.random() * NUM_LEDS );
-	ard.varWrite( 'leds', colour );
+	ard.varWrite( 'leds', colour, index );
 }
 
 var phase = 0;
