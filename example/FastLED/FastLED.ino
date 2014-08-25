@@ -1,66 +1,174 @@
 #include <FastLED.h>
 #include "Ardnodeo.h"
 
-#define LED_TYPE TM1809
-#define NUM_LEDS 30
-#define LED_PIN 11
+// Theses will need to tweaked for your setup!
+#define STRIP_TYPE TM1809
+#define STRIP_FORMAT BRG
+#define STRIP_LENGTH 90
+#define STRIP_PIN 11
 
+// Arduino's onboard LED
+#define ACTIVITY_PIN 13
+
+// Size of convolution kernel
+#define KERNEL_SIZE 9
+
+// RGB, 'cause no magic numbers, right?
+#define CHANNELS 3
+
+#define clamp(v) ((v)>255?255:(v)<0?0:(v))
 
 struct data_t {
   //#ARDNODEO_VARS
-  CRGB leds[NUM_LEDS];
+  int16_t   snowFreq; // Add random snow locally
+  bool      convolutionActive;
+  int8_t    kernelOrigin;
+  int8_t    kernel[CHANNELS][KERNEL_SIZE];
+  uint16_t  kernelDiv[CHANNELS];
+  CRGB      edgeColour;
+  CRGB      ledBuffer[STRIP_LENGTH];
   //#/ARDNODEO_VARS
 } data;
 
-ArdnodeoData<data_t> ard = ArdnodeoData<data_t>( &data );
+ArdnodeoData<data_t> node = ArdnodeoData<data_t>( &data );
 
 
-
-
-// the setup routine runs once when you press reset:
 void setup() {                
-  FastLED.addLeds<LED_TYPE, LED_PIN, BRG>(data.leds, NUM_LEDS);
-  ard.setup();
-}
+  FastLED.addLeds<STRIP_TYPE, STRIP_PIN, STRIP_FORMAT>(data.ledBuffer, STRIP_LENGTH);
 
-void renderDebug( long r, long g = 0, long b = 0 ) {
-  r = r * NUM_LEDS / 255;
-  g = g * NUM_LEDS / 255;
-  b = b * NUM_LEDS / 255;
+  data.snowFreq = 6;
   
-  for ( int i = 0; i < NUM_LEDS; i ++ ) {
-    data.leds[i].raw[0] = i <= r ? 80 : 0; // Blue
-    data.leds[i].raw[1] = i <= g ? 80 : 0;
-    data.leds[i].raw[2] = i <= b ? 80 : 0;
-  }
+  // Pre-initialize the kernal, mostly so this thing will work without
+  // node attached.
+  data.kernelOrigin = 4;
+
+  data.kernel[0][3] = 10;
+  data.kernel[0][4] = 20;
+  data.kernel[0][5] = 10;
+  data.kernelDiv[0] = 41;
+  
+  data.kernel[1][3] = 10;
+  data.kernel[1][4] = 20;
+  data.kernel[1][5] = 10;
+  data.kernelDiv[1] = 42;
+  
+  data.kernel[2][0] = 2;
+  data.kernel[2][1] = 5;
+  data.kernel[2][2] = 10;
+  data.kernel[2][3] = 5;
+  data.kernel[2][4] = 15;
+  data.kernel[2][5] = 5;
+  data.kernel[2][6] = 10;
+  data.kernel[2][7] = 5;
+  data.kernel[2][8] = 2;
+
+
+  data.kernelDiv[2] = 60;
  
+
+/*
+  data.snowFreq = 2;
+
+  data.kernel[0][4] = 10;
+  data.kernel[0][5] = 10;
+  
+  data.kernelDiv[0] = 21;
+  
+  data.kernel[1][2] = 20;
+  data.kernelDiv[1] = 21;
+  
+  data.kernel[2][6] = 15;
+  data.kernelDiv[2] = 16;
+*/
+
+  //node.setup();
 }
 
-bool ledState = false;
+bool activity= false;
 
 
-void diffuseLeds ( int width = 3, int bias = 1, int darken = 1 ) {
-	for ( int i = 0; i < NUM_LEDS - width; i ++ ) {
-		for ( char c = 0; c < 3; c++ ) {
-			int v = 0;
-			for ( int x = 0; x < width; x ++ ) {
-				v += data.leds[i + x].raw[c] * ( x == 0 ? bias + 1 : 1 );
+void convolve () {
+  // kernelOrigin currently must be inside the kernel.
+  data.kernelOrigin = max( min( data.kernelOrigin, KERNEL_SIZE - 1 ), 0 );
+
+  // The convolution will write to this ring buffer instead of directly back to 
+  // data.ledBuffer so the input to the kernel stays clean.
+  CRGB buffer[KERNEL_SIZE];
+
+  int16_t bufferWrite = 0;
+  int16_t bufferRead = 0;
+
+  // This definitely isn't the tightest implementation of
+  // a 1D convolution kernel, but it'll do.
+	for ( int16_t i = 0; i < STRIP_LENGTH; i ++ ) {
+
+    int16_t left = i - data.kernelOrigin;
+    int16_t right = left + KERNEL_SIZE;
+
+    if ( i >= KERNEL_SIZE ) {
+      data.ledBuffer[i-KERNEL_SIZE] = buffer[bufferRead];
+
+      bufferRead ++;
+      if ( bufferRead == KERNEL_SIZE )
+        bufferRead = 0;
+    }
+
+		for ( uint8_t channel = 0; channel < CHANNELS; channel++ ) {
+			int16_t accumulator = 0;
+      uint8_t kx = 0;
+			for ( int16_t x = left; x < right; x ++ ) {
+        // Value from either inside data.ledBuffer or edgeColour
+        int16_t value = ( x >= 0 && x < STRIP_LENGTH ? data.ledBuffer[x] : data.edgeColour ).raw[channel];
+
+				accumulator += value * data.kernel[channel][kx];
+        kx++;
 			}
-			data.leds[i].raw[c] = v / ( width + bias + darken ) ;
+
+      accumulator = accumulator / data.kernelDiv[channel];
+      buffer[bufferWrite].raw[channel] = clamp( accumulator );
 		}
+
+    bufferWrite ++;
+    if ( bufferWrite == KERNEL_SIZE )
+      bufferWrite = 0;
 	}
+
+  // Write out the rest of the ring buffer
+  for ( int x = 0; x < KERNEL_SIZE; x ++ ) {
+    data.ledBuffer[ STRIP_LENGTH - KERNEL_SIZE + x ] = buffer[bufferRead];
+    bufferRead ++;
+    if ( bufferRead == KERNEL_SIZE )
+      bufferRead = 0;    
+  }
+
 }
 
-// the loop routine runs over and over again forever:
-void loop() {
-	ledState = !ledState;
-	digitalWrite( 13, ledState ? HIGH : LOW );
+uint16_t frame = 0;
 
-  ard.update();
-  //diffuseLeds();
+void loop() {
+
+  
+  // Blink the onboard LED to show activity
+  static bool activityBlinker = false;
+	activityBlinker = !activityBlinker;
+	digitalWrite( ACTIVITY_PIN, activityBlinker ? HIGH : LOW );
+
+  // 
+  //node.update();
+
+  if ( data.snowFreq && !( frame % data.snowFreq ) ) {
+    uint16_t index = random(STRIP_LENGTH);
+    data.ledBuffer[index].raw[0] = 255;
+    data.ledBuffer[index].raw[1] = 255;
+    data.ledBuffer[index].raw[2] = 255;
+  }
+  frame ++;
+
+
+
+  
   //renderDebug( ledState ? 255 : 30, 0, 40 );
   FastLED.show();
-
-  delay(100);
+  convolve();
 }
 
