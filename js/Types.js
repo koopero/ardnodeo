@@ -2,86 +2,44 @@ var _ = require('underscore');
 
 var Convert = require('./Convert');
 
-var Types = {
-	Uint8: {
-		size: 1,
-		alias: [ 'unsigned char', 'uint8_t', 'byte' ],
-		toBuffer: Convert.Uint8ToBuffer
-	},
-	Int8: {
-		size: 1,
-		alias: [ 'signed char', 'char', 'int8_t' ]
-	},
+var Types = {};
+module.exports = Types;
 
-	Uint16: {
-		size: 2,
-		alias: ['short', 'unsigned short', 'int16_t' ],
-		toBuffer: Convert.Uint16ToBuffer
-	},
-	Int16: {
-		size: 2,
-		alias: ['short', 'signed short', 'int16_t' ]
-	},
-
-	Uint32: {
-		size: 2,
-		alias: ['unsigned long', 'uint32_t' ],
-		toBuffer: Convert.Uint32ToBuffer
-	},
-	Int32: {
-		size: 2,
-		alias: ['long', 'signed long', 'int32_t' ]
-	},
+addType( 'bool', 		1 );
+addType( 'int8_t', 		1, [ 'signed char', 'char' ] );
+addType( 'uint8_t', 	1, [ 'unsigned char', 'byte' ] );
+addType( 'int16_t', 	2, [ 'short', 'signed short' ] );
+addType( 'uint16_t', 	2, [ 'unsigned short' ]	);
+addType( 'int32_t', 	4, [ 'long', 'signed long'] );
+addType( 'uint32_t', 	4, [ 'unsigned long' ] );
+addType( 'float', 		4 );
+addType( 'clamp8', 		1 );
+addType( 'clamp10', 	2 );
+addType( 'clamp12', 	2 );
+addType( 'CRGB', 		3 );
 
 
-	"float": {
-		size: 4,
-		toBuffer: Convert.floatToBuffer
-	},
+function addType( name, size, aliases ) {
+	var type = {
+		name: name,
+		size: size,
+		toBuffer: Convert[name].Buffer,
+		fromBuffer: Convert.Buffer[name]
+	};
 
-	Clamp8: {
-		size: 1,
-		toBuffer: Convert.Clamp8ToBuffer
-	},
-	Clamp10: {
-		size: 2,
-		toBuffer: Convert.Clamp10ToBuffer
-	},
-	Clamp12: {
-		size: 2,
-		toBuffer: Convert.Clamp12ToBuffer
-	},
-
-	CRGB: {
-		size: 3,
-		toBuffer: Convert.ColourToRGBBuffer
-	}
-}
-
-_.map( Types, function ( type, name ) {
-	type.name = name;
 	Object.defineProperty( type, 'inspect', {
 		value: function () {
 			return '[Type: '+name+']'
 		}
 	});
-} );
 
+	if ( !aliases )
+		aliases = [ name ];
+	else
+		aliases.push( name );
 
-var aliases = {};
-_.map( Types, function ( type, name ) {
-	aliases[name] = type;
-	if ( type.alias ) {
-		type.alias.forEach( function ( name ) {
-			aliases[name] = type;
-		});
-	}
-} );
+	aliases.forEach( function ( alias ) {
+		Types[alias] = type;
+	} );
+};
 
-
-
-Object.defineProperty( Types, 'aliases', {
-	value: aliases
-});
-
-module.exports = Types;

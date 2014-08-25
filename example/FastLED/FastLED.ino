@@ -81,7 +81,9 @@ void setup() {
   data.kernelDiv[2] = 16;
 */
 
-  //node.setup();
+  node.setup();
+
+  data.convolutionActive = true;
 }
 
 bool activity= false;
@@ -141,6 +143,7 @@ void convolve () {
       bufferRead = 0;    
   }
 
+
 }
 
 uint16_t frame = 0;
@@ -154,7 +157,7 @@ void loop() {
 	digitalWrite( ACTIVITY_PIN, activityBlinker ? HIGH : LOW );
 
   // 
-  //node.update();
+  node.update();
 
   if ( data.snowFreq && !( frame % data.snowFreq ) ) {
     uint16_t index = random(STRIP_LENGTH);
@@ -169,6 +172,9 @@ void loop() {
   
   //renderDebug( ledState ? 255 : 30, 0, 40 );
   FastLED.show();
-  convolve();
+
+  if ( data.convolutionActive )
+    convolve();
+
 }
 

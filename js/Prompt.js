@@ -15,6 +15,10 @@ function Prompt( ard ) {
 		ard.close();
 	});
 
+	ard.on('line', function ( line ) {
+		console.log( line );
+	} );
+
 	_.extend( prompt.context, Ardnodeo, ard, { a: ard } );
 
 	prompt.context.help = function () {

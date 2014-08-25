@@ -22,6 +22,7 @@ function Ardnodeo ( opt ) {
 		_serialWrite,
 		_serialInLine,
 		_receiveQueue = [],
+		_receiveCommand = 0,
 		status = {},
 		_variables = Object.create( null ),
 		outputRegulator = new Regulator( 10000 ),
@@ -35,6 +36,7 @@ function Ardnodeo ( opt ) {
 	self.source = sourceFile;
 	self.setSerial = setSerial;
 	self.status = status;
+	self._receiveQueue = _receiveQueue;
 
 
 	self.outputRegulator = outputRegulator;
@@ -50,7 +52,9 @@ function Ardnodeo ( opt ) {
 
 		setTick( false );
 
-		console.log( "Closing time" );
+
+
+		debug( "Closing time" );
 		if ( _serial ) {
 			async.series( [ 
 				_serial.drain.bind( _serial ),
@@ -78,6 +82,8 @@ function Ardnodeo ( opt ) {
 		_.map( parsed.vars, function ( v, name ) {
 			varConfig( name, v );
 		});
+
+
 	}
 
 
@@ -107,24 +113,39 @@ function Ardnodeo ( opt ) {
 		if ( !k )
 			return;
 
-		for ( var ri = 0; ri < _receiveQueue.length; ri ++ ) {
-			var receiver = _receiveQueue[ri];
+		//if ( data[0] != 0xa0 )
+		//	console.log( _receiveCommand, data );
 
-			var need = receiver.buffer.length - receiver.got;
-			var copy = length < need ? length : need;
+		if ( _receiveCommand ) {
+			for ( var ri = 0; ri < _receiveQueue.length; ri ++ ) {
+				var receiver = _receiveQueue[ri];
 
-			data.copy( receiver.buffer, receiver.got );
+				if ( receiver.command != _receiveCommand )
+					continue;
 
-			receiver.got += copy;
-			i += copy;
+				var need = receiver.buffer.length - receiver.got;
+				var copy = k < need ? k : need;
 
-			if ( need == copy ) {
-				receiver.callback( null, receiver.buffer );
-				_receiveQueue.shift();
-				_onSerialData( data.slice( i ) );
+				data.copy( receiver.buffer, receiver.got );
+
+				receiver.got += copy;
+				i += copy;
+
+				if ( need == copy ) {
+					_receiveCommand = 0;
+					//console.log( "Got buffer", receiver );
+					receiver.callback( null, receiver.buffer );
+					_receiveQueue.splice( ri, 1 );
+					_onSerialData( data.slice( i ) );
+				}
+
 				return;
 			}
 		}
+
+
+
+
 		
 		while ( i < data.length ) {
 			var c = data[i];
@@ -161,19 +182,36 @@ function Ardnodeo ( opt ) {
 
 	function _onSerialReturn ( command ) {
 		
-		var arg0 = command & 7;
-		command = (command & 120) >> 3;
+		var arg0 = command & 0xf;
+		command = (command & 0x70) >> 4;
+
+		//console.log ( " COMANND", command );
 
 		switch ( command ) {
-			case Protocol.Return.Tick:
+			case Protocol.tick:
 				self.emit('tick', arg0 );
 
 
-			case 5 :
+			case Protocol.received:
 				outputRegulator.allow = serialBufferSize;
 				flushOutput();
 			break;
+
+			case Protocol.peek:
+				//console.log( "GOT PEEK" );
+				_receiveCommand = Protocol.peek;
+			break;
 		}
+	}
+
+	function receiveBuffer( command, buffer, cb ) {
+		_receiveQueue.push( {
+			command: command,
+			got: 0,
+			buffer: buffer,
+			callback: cb,
+			time: new Date().getTime()
+		});
 	}
 
 	function _onSerialOpen () {
@@ -238,13 +276,6 @@ function Ardnodeo ( opt ) {
 		return buf;
 	}
 
-	function _receiveBytes ( length, cb ) {
-		var receiver = {
-			buffer: new Buffer( numBytes),
-			got: 0
-		};
-	}
-
 	var commands = self;
 
 	commands.pinMode = function ( pin, mode ) {
@@ -258,7 +289,7 @@ function Ardnodeo ( opt ) {
 
 	commands.digitalWrite = function ( pin, value ) {
 		queueOutput( packOutput( 
-			packCommand( Protocol.Command.DigitalWrite, value ? 1 : 0 ),
+			packCommand( Protocol.digitalWrite, value ? 1 : 0 ),
 			pin
 		) );
 	}
@@ -267,7 +298,7 @@ function Ardnodeo ( opt ) {
 		value = Convert.NumberToUint8( value );
 
 		queueOutput( packOutput( 
-			packCommand( Protocol.Command.AnalogWrite ),
+			packCommand( Protocol.analogWrite ),
 			pin,
 			value
 		) );
@@ -280,48 +311,103 @@ function Ardnodeo ( opt ) {
 	commands.setTick = setTick; 
 	function setTick ( v ) {
 		queueOutput( packOutput( 
-			packCommand( Protocol.setFlags, v ? Protocol.Options.Tick : 0 )
+			packCommand( Protocol.setFlags, v ? Protocol.Tick : 0 )
 		) );
 	}
 
-	commands.memWrite = memWrite;
-	function memWrite ( offset, buffer ) {
+	commands.poke = poke;
+	function poke ( offset, buffer ) {
+		growMemory( offset + buffer.length );
+		buffer.copy( self.memory, offset );
+
 		while ( buffer.length ) {
 			size = buffer.length > 16 ? 16 : buffer.length;
 			queueOutput( packOutput( 
 				packCommand( Protocol.poke, size - 1 ),
-				Convert.uint16ToBuffer( offset ),
+				Convert.uint16_t.Buffer( offset ),
 				buffer.slice( 0, size )
 			) );
 			buffer = buffer.slice( size );
 		}
 	}
 
+	commands.peek = peek;
+	function peek ( offset, size, cb ) {
+		size = parseInt( size );
+		size = isNaN( size ) ? 1 : size;
+		
+		growMemory( offset + size );
+
+		var ret = new Buffer( size );
+		ret.fill(0);
+
+		self.memory.copy( ret, 0, offset, offset + size );
+		
+		queueOutput( packOutput( 
+			packCommand( Protocol.peek, size - 1 ),
+			Convert.uint16_t.Buffer( offset )
+		) );
+
+		receiveBuffer( Protocol.peek, ret, function ( err, buffer ) {
+			//console.log( "peek return", err, buffer );
+			if ( err ) {
+				if ( cb )
+					return cb( err );
+
+				throw new Error("Unhandled fault on peek");
+			}
+
+			buffer.copy( self.memory, offset );
+
+			if ( cb )
+				cb( null, buffer );
+		});
+
+		return ret;
+	}
+
 	commands.varConfig = varConfig;
-	function varConfig ( varName, opt ) {
+	function varConfig ( varName, _var ) {
 		if ( 'string' != typeof varName )
 			throw new TypeError ( 'Invalid var name' );
 
-		if ( opt == null ) {
+		if ( _var == null ) {
 			delete _variables[varName];
 			return;
 		}
 
-		if ( 'number' != typeof opt.offset )
+		if ( 'number' != typeof _var.offset )
 			throw new TypeError ( 'Invalid or unspecified offset' );
 
-		if ( 'object' != typeof opt.type )
+		if ( 'object' != typeof _var.type )
 			throw new TypeError ( 'Invalid or unspecified type' );
 
-		_variables[varName] = opt;
-		opt.write = varWrite.bind( self, varName );
+		_variables[varName] = _var;
+
+
+		_var.write = varWrite.bind( self, varName );
+
+
+
+		growMemory( _var.offset + _var.length );
+
+	}
+
+	function growMemory ( length ) {
+		if ( !self.memory || self.memory.length < length ) {
+			var newMirror = new Buffer( length );
+			newMirror.fill( 0 );
+			if ( self.memory )
+				self.memory.copy( newMirror );
+			self.memory = newMirror;
+		}
 	}
 
 	commands.varWrite = varWrite;
 	function varWrite ( varName, value ) {
 		var variable = _variables[varName];
 		if ( !variable )
-			throw new Error( 'Variable not found' );
+			throw new Error( 'Variable not found '+varName );
 
 		var buffer = variable.type.toBuffer( value );
 
@@ -340,7 +426,7 @@ function Ardnodeo ( opt ) {
 				//console.warn ( "setDimension", d, offset, stride )
 
 				if ( isLeaf ) {
-					memWrite( offset, buffer )
+					poke( offset, buffer )
 				} else {
 					var dim = dims[d];
 					var index = parseInt( indexes[d] );
@@ -354,14 +440,34 @@ function Ardnodeo ( opt ) {
 			}
 
 		} else {
-			memWrite( variable.offset, buffer );
+			poke( variable.offset, buffer );
 		}
 	}
+
+	commands.varRead = varRead;
+	function varRead( varName, cb ) {
+		var variable = _variables[varName];
+		if ( !variable )
+			throw new Error( 'Variable not found '+varName );
+
+		if ( cb ) {
+			var peekCallback = function ( err, buffer ) {
+				if ( err )
+					cb( err )
+				else
+					cb( null, variable.type.fromBuffer( buffer ) );
+			}
+		}
+
+		var buffer = peek( variable.offset, variable.length, peekCallback );
+
+		return variable.type.fromBuffer( buffer );
+	} 
 
 
 	commands.reset = reset;
 	function reset () {
-		_sendCommand( Protocol.Command.reset, 0 );
+		_sendCommand( Protocol.reset, 0 );
 	}	 
 
 	self.Protocol = Protocol;

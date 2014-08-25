@@ -17,13 +17,15 @@ public:
 
 	class Protocol {
 	public:
+		//#ARDNODEO_PROTOCOL
 		enum InputCommand {
 			Null = 0,
-			PinMode = 1,
-			DigitalWrite = 2,
-			AnalogWrite = 3,
-			MemWrite = 4,
-			setOptions = 5,
+			pinMode = 1,
+			digitalWrite = 2,
+			analogWrite = 3,
+			poke = 4,
+			peek = 7,
+			setFlags = 5,
 			reset = 6
 		};
 
@@ -43,6 +45,7 @@ public:
 		enum Status {
 			received = 1 
 		};
+		//#/ARDNODEO_PROTOCOL
 	};
 
 protected:

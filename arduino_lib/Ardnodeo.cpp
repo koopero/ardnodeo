@@ -36,7 +36,7 @@ void Ardnodeo::receive() {
       //Serial.println(command, DEC );
 
       switch ( command ) {
-        case Protocol::PinMode :
+        case Protocol::pinMode :
         {
           uint8_t pinId = Serial.read();
           switch ( arg0 ) {
@@ -48,7 +48,7 @@ void Ardnodeo::receive() {
         }
         break;
 
-        case Protocol::DigitalWrite :
+        case Protocol::digitalWrite :
         {
           uint8_t pinId = readByte();
           digitalWrite( pinId, arg0 ? HIGH : LOW );
@@ -57,7 +57,7 @@ void Ardnodeo::receive() {
         }
         break;
 
-        case Protocol::AnalogWrite :
+        case Protocol::analogWrite :
         {
           uint8_t pinId = readByte();
           uint8_t value = readByte();
@@ -68,7 +68,7 @@ void Ardnodeo::receive() {
         }
         break;
 
-        case Protocol::MemWrite :
+        case Protocol::poke :
         {
           uint16_t offset = readUnsignedShort();
           if ( !lastReadOkay )
@@ -77,20 +77,35 @@ void Ardnodeo::receive() {
           uint8_t size = arg0 + 1;
           char * p = (char*)((int) data + (int) offset);
 
-          /*
-          Serial.println("Offset");
-          Serial.println(offset, DEC );
-          
-          Serial.println("Size");
-          Serial.println(size, DEC );
-          */
-
           Serial.readBytes( p, size );
           commandsProcessed ++;
         }
         break;
 
-        case Protocol::setOptions :
+        case Protocol::peek :
+        {
+          uint16_t offset = readUnsignedShort();
+          if ( !lastReadOkay )
+            break;
+
+          uint8_t size = arg0 + 1;
+          uint8_t * p = (uint8_t*)((int) data + (int) offset);
+
+          /*
+          Serial.println( "Got peek" );
+          Serial.println( offset, DEC );
+          Serial.println( size, DEC );
+          */
+
+          sendReturn( Protocol::peek, arg0 );
+
+          Serial.write( p, size );
+
+          commandsProcessed ++;
+        }
+        break;
+
+        case Protocol::setFlags :
         {
           uint8_t newOptions = readByte();
           if ( lastReadOkay )
@@ -120,8 +135,8 @@ void Ardnodeo::receive() {
 void Ardnodeo::sendReturn( uint8_t cmd, uint8_t arg ) {
   sendByte( 
     128 |  // All returns have top bit set
-    ( ( cmd & 0xf ) << 3 ) |
-    ( arg & 7 )
+    ( ( cmd & 0xf ) << 4 ) |
+    ( arg & 0xf )
   );
 }
 

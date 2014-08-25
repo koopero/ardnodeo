@@ -5,9 +5,9 @@ var onecolor = require('onecolor');
 
 var ard = Ardnodeo.Bootstrap();
 ard.source( "FastLED.ino" );
+
 ard.setTick( true );
 
-ard.varWrite( 'leds', 'green' );
 
 require( '../../js/Prompt' )( ard );
 
@@ -26,7 +26,7 @@ function tick () {
 
 	var colour = new onecolor.HSV( phase % 1, Math.random(), Math.random() );
 	var index = Math.floor( Math.random() * NUM_LEDS );
-	ard.varWrite( 'leds', colour, index );
+	ard.varWrite( 'ledBuffer', colour, index );
 }
 
 var phase = 0;
