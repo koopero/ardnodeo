@@ -19,8 +19,9 @@ var colour = new onecolor( "red" );
 var NUM_LEDS = ard.define.NUM_LEDS; 
 
 var phase;
-tick();
+//tick();
 function tick () {
+	return;
 	if ( phase === undefined ) phase = Math.random() * 1000;
 	phase += 0.01;
 

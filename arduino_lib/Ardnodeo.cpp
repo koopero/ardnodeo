@@ -6,9 +6,9 @@ void Ardnodeo::setup () {
 }
 
 void Ardnodeo::update () {
-  if ( options & Protocol::Tick ) {
+  //if ( options & Protocol::Tick ) {
     tick();
-  }
+  //}
   receive();
 }
 
@@ -16,6 +16,21 @@ void Ardnodeo::tick() {
   //if ( Serial )
     sendReturn( Protocol::Tick );
 }
+
+bool Ardnodeo::catchEvent( uint8_t eventCode ) {
+  uint8_t byteIndex = eventCode >> 3;
+  uint8_t bitIndex = eventCode & 7;
+  uint8_t bit = 1 << bitIndex;
+
+  if ( _incomingEvents[byteIndex] & bit ) {
+    _incomingEvents[byteIndex] ^= bit;
+    return true;
+  }
+
+  return false;
+}
+
+
 
 void Ardnodeo::receive() {
   int commandsProcessed;
@@ -122,8 +137,7 @@ void Ardnodeo::receive() {
       }
     };
 
-    if ( commandsProcessed )
-      sendReturn( Protocol::status, Protocol::received );
+    sendReturn( Protocol::status, Protocol::received );
 
     delay( 2 );
 

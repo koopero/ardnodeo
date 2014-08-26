@@ -96,7 +96,6 @@ void convolve () {
   // The convolution will write to this ring buffer instead of directly back to 
   // data.ledBuffer so the input to the kernel stays clean.
   CRGB buffer[KERNEL_SIZE];
-
   int16_t bufferWrite = 0;
   int16_t bufferRead = 0;
 

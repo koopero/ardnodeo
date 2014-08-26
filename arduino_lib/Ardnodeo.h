@@ -3,6 +3,10 @@
 
 #include "Arduino.h"
 
+typedef uint8_t clamp8 ; 
+typedef uint16_t clamp10 ; 
+typedef uint16_t clamp12 ; 
+
 class Ardnodeo {
 public:
 
@@ -11,6 +15,8 @@ public:
 	void update();
 	void receive ();
 	void tick ();
+
+	bool catchEvent( uint8_t eventCode );
 
 	void * data;
 	char options = 0;
@@ -48,13 +54,22 @@ public:
 		//#/ARDNODEO_PROTOCOL
 	};
 
+	template <typename T> void mark( const T* offset, bool force = false ) {
+		_markRegion( (void *) offset, sizeof(T), force );
+	};
+
 protected:
+	bool lastReadOkay;
+
+	uint8_t _incomingEvents[32];
+
 	uint8_t  readByte  ();
 	uint16_t readUnsignedShort ();
 
-	bool lastReadOkay;
+	
 
-	void sendMem( void * offset, size_t size );
+	void _markRegion( void * offset, size_t size, bool force );
+
 
 	void sendReturn ( unsigned char commandId, unsigned char arg = 0 );
 	void sendByte ( unsigned char byte );

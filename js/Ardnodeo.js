@@ -1,11 +1,11 @@
-var Protocol = require('./Protocol');
-var Convert = require('./Convert');
-var Regulator = require('./Regulator');
-var _ = require('underscore');
-
-var async = require('async');
-
-var util = require('util');
+const
+	Convert = require('./Convert'),
+	Protocol = require('./Protocol'),
+	Regulator = require('./Regulator'),
+	Serial = require('./Serial'),
+	_ = require('underscore'),
+	async = require('async'),
+	util = require('util');
 
 util.inherits( Ardnodeo, require('events').EventEmitter );
 
@@ -18,57 +18,57 @@ function Ardnodeo ( opt ) {
 
 	// Protected variables
 	var 
-		_serial,
-		_serialWrite,
+		_connection,
 		_serialInLine,
 		_receiveQueue = [],
 		_receiveCommand = 0,
 		status = {},
 		_variables = Object.create( null ),
-		outputRegulator = new Regulator( 10000 ),
-		serialBufferSize = 60
+		serialBufferSize = 60,
+		outputRegulator = new Regulator( serialBufferSize )
 	;
 
+	opt = opt || {};
+
+	_connection = new Serial();
+	addConnectionListeners( _connection );
+
+	self.connection = _connection;
 
 	self.vars = _variables;
 	self.offsets = [];
 	self.close = close;
 	self.source = sourceFile;
-	self.setSerial = setSerial;
 	self.status = status;
 	self._receiveQueue = _receiveQueue;
-
-
+	self.setConnection = setConnection;
 	self.outputRegulator = outputRegulator;
 
-	opt = opt || {};
 
-	if ( opt.serial ) {
-		setSerial( opt.serial );
+	function setConnection ( opt ) {
+		_connection.open ( opt );
 	}
 
 	
 	function close ( cb ) {
+		sendImmediate(
+			packCommand( Protocol.setFlags, 0 )
+		);
 
-		setTick( false );
+		_connection.close();
+	}
 
+	function addConnectionListeners( connection ) {
+		connection.on('status', function () {
+			setStatus( connection.status );
+		});
 
-
-		debug( "Closing time" );
-		if ( _serial ) {
-			async.series( [ 
-				_serial.drain.bind( _serial ),
-				_serial.flush.bind( _serial ),
-				_serial.close.bind( _serial )
-			], function () {
-				_serial = null;
-				cb;
-			} );
-		} else {
-			cb( new Error( "Already closed" ) );
-		}
-		
-		//_serial.close();
+		connection.on('data', onData );
+		connection.on('open', function () {
+			self.emit('open');
+			outputRegulator.allow = serialBufferSize;
+			flushOutput ();
+		});
 	}
 
 
@@ -87,26 +87,22 @@ function Ardnodeo ( opt ) {
 	}
 
 
-	
-	function setSerial( serial ) {
-		if ( _serial ) {
-			throw new Error( "Serial already set" );
+	function setStatus( newStatus ) {
+		var changed = false;
+		for ( var k in newStatus ) {
+			if ( status[k] !== newStatus[k] ) {
+				changed = true;
+				status[k] = newStatus[k];
+			}
 		}
 
-		var SerialPort = require("serialport").SerialPort;
-
-		if ( serial instanceof SerialPort ) {
-			_serial = serial;
-		} else {
-			_serial = new SerialPort( serial.port, serial );
+		if ( changed ) {
+			self.emit('status', status );
 		}
-		
-		_serial.on('data', _onSerialData );
-		_serial.on('open', _onSerialOpen );
-		//_serial.on('error', _onSerialError );
 	}
 
-	function _onSerialData ( data ) {
+
+	function onData ( data ) {
 		var i = 0,
 			k = data.length;
 
@@ -136,16 +132,12 @@ function Ardnodeo ( opt ) {
 					//console.log( "Got buffer", receiver );
 					receiver.callback( null, receiver.buffer );
 					_receiveQueue.splice( ri, 1 );
-					_onSerialData( data.slice( i ) );
+					onData( data.slice( i ) );
 				}
 
 				return;
 			}
 		}
-
-
-
-
 		
 		while ( i < data.length ) {
 			var c = data[i];
@@ -153,7 +145,7 @@ function Ardnodeo ( opt ) {
 			// to allow ascii to pass unencumbered
 			if ( c & 128 ) {
 				_onSerialReturn( c );
-				_onSerialData( data.slice( i + 1 ) );
+				onData( data.slice( i + 1 ) );
 				return;
 			} else {
 				if ( !_serialInLine )
@@ -185,14 +177,18 @@ function Ardnodeo ( opt ) {
 		var arg0 = command & 0xf;
 		command = (command & 0x70) >> 4;
 
-		//console.log ( " COMANND", command );
+		//process.stdout.write( "\r\0\0"+command+'\0' );
+		
 
 		switch ( command ) {
 			case Protocol.tick:
+				console.log( "tick");
+
 				self.emit('tick', arg0 );
 
 
 			case Protocol.received:
+				console.log( "received!");
 				outputRegulator.allow = serialBufferSize;
 				flushOutput();
 			break;
@@ -214,15 +210,6 @@ function Ardnodeo ( opt ) {
 		});
 	}
 
-	function _onSerialOpen () {
-		status.serialOpen = true;
-		_serialWrite = _serial.write.bind( _serial );
-		flushOutput ();
-	}
-
-	function _onSerialError( error ) {
-		console.warn( "Serial Error", error );
-	}
 
 
 	function packOutput () {
@@ -253,15 +240,25 @@ function Ardnodeo ( opt ) {
 	}
 
 	function flushOutput () {
-		if ( !_serialWrite ) {
-			status.writeError = true;
+		if ( !_connection.write ) {
+			setStatus( {
+				writeError: true
+			});
 			return false;
 		}
-
-		status.writeError = false;
 		
-		var result = outputRegulator.write( _serialWrite );
-		status.bufferFull = !result;
+		var result = outputRegulator.write( _connection.write );
+		setStatus( {
+			writeError: false,
+			bufferFull: !result
+		});	
+	}
+
+	function sendImmediate( buffer ) {
+		if ( _connection.write ) {
+			_connection.write( buffer );
+			return true;
+		}
 	}
 
 	function packCommand ( command, arg0 ) {
@@ -332,38 +329,69 @@ function Ardnodeo ( opt ) {
 	}
 
 	commands.peek = peek;
-	function peek ( offset, size, cb ) {
-		size = parseInt( size );
-		size = isNaN( size ) ? 1 : size;
-		
-		growMemory( offset + size );
+	function peek ( offset, buffer, cb ) {
+		var size,
+			end;
 
-		var ret = new Buffer( size );
-		ret.fill(0);
+		// Default to peeking 1 byte
+		if ( buffer === undefined )
+			buffer = 1;
 
-		self.memory.copy( ret, 0, offset, offset + size );
-		
-		queueOutput( packOutput( 
-			packCommand( Protocol.peek, size - 1 ),
-			Convert.uint16_t.Buffer( offset )
-		) );
+		if ( 'number' == typeof buffer ) {
+			 size = buffer;
+			 buffer = new Buffer(size);
+			 buffer.fill(0);
+		} else if ( buffer instanceof Buffer ) {
+			size = buffer.length;
+		} else {
+			throw new Error ( "Parameter must be Buffer or length" );
+		}
 
-		receiveBuffer( Protocol.peek, ret, function ( err, buffer ) {
-			//console.log( "peek return", err, buffer );
-			if ( err ) {
-				if ( cb )
-					return cb( err );
+		end = offset + size; 
+		growMemory( end );
+		self.memory.copy( buffer, 0, offset, end);
 
-				throw new Error("Unhandled fault on peek");
+		if ( size > 16 ) {
+			var chunks = [];
+			for ( var o = offset; o < end; o += 16 ) {
+				var chunkEnd = Math.min( end, o + 16 );
+				var chunkBuffer = 
+				chunks.push( {
+					offset: o,
+					buffer: buffer.slice( o, chunkEnd )
+				});
 			}
 
-			buffer.copy( self.memory, offset );
+			async.map( chunks, function ( chunk, cb ) {
+				peek( chunk.offset, chunk.buffer, cb );
+			}, function ( err ) {
+				if ( cb )
+					cb( err, buffer );
+			});
 
-			if ( cb )
-				cb( null, buffer );
-		});
+		} else {
+			queueOutput( packOutput( 
+				packCommand( Protocol.peek, size - 1 ),
+				Convert.uint16_t.Buffer( offset )
+			) );
 
-		return ret;
+			receiveBuffer( Protocol.peek, buffer, function ( err, buffer ) {
+				//console.log( "peek return", err, buffer );
+				if ( err ) {
+					if ( cb )
+						return cb( err );
+
+					throw new Error("Unhandled fault on peek");
+				}
+
+				buffer.copy( self.memory, offset );
+
+				if ( cb )
+					cb( null, buffer );
+			});
+		}
+
+		return buffer;
 	}
 
 	commands.varConfig = varConfig;

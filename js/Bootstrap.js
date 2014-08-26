@@ -16,7 +16,7 @@ function Bootstrap ( opt, cb ) {
 	}
 
 	var ard = new Ardnodeo( opt );
-	ard.setSerial( serialOpt );
+	ard.setConnection( serialOpt );
 
 	if ( cb ) {
 		setImmediate( function () {
