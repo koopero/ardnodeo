@@ -24,7 +24,7 @@ function Ardnodeo ( opt ) {
 		_receiveCommand = 0,
 		status = {},
 		_variables = Object.create( null ),
-		serialBufferSize = 60,
+		serialBufferSize = 32,
 		outputRegulator = new Regulator( serialBufferSize )
 	;
 
@@ -179,16 +179,17 @@ function Ardnodeo ( opt ) {
 
 		//process.stdout.write( "\r\0\0"+command+'\0' );
 		
+		//console.log( "Got command", command, Protocol );
 
 		switch ( command ) {
-			case Protocol.tick:
-				console.log( "tick");
+			case Protocol.Tick:
+				//console.log( "tick");
 
 				self.emit('tick', arg0 );
 
 
-			case Protocol.received:
-				console.log( "received!");
+			case Protocol.status:
+				//console.log( "received!");
 				outputRegulator.allow = serialBufferSize;
 				flushOutput();
 			break;
@@ -394,6 +395,12 @@ function Ardnodeo ( opt ) {
 		return buffer;
 	}
 
+	commands.peekAll = peekAll;
+	function peekAll( cb ) {
+		return peek( 0, self.memory.length, cb );
+	}
+
+
 	commands.varConfig = varConfig;
 	function varConfig ( varName, _var ) {
 		if ( 'string' != typeof varName )
@@ -432,79 +439,183 @@ function Ardnodeo ( opt ) {
 	}
 
 	commands.varWrite = varWrite;
-	function varWrite ( varName, value ) {
+	function varWrite ( varName, values, indexes, cb ) {
 		var variable = _variables[varName];
 		if ( !variable )
 			throw new Error( 'Variable not found '+varName );
 
-		var buffer = variable.type.toBuffer( value );
+		var type = variable.type;
 
-		if ( !buffer )
-			throw new Error( "Problem converting "+String(value) );
+		var lastArg = arguments.length - 1;
+		if ( 'function' == typeof arguments[lastArg] ) {
+			cb = arguments[lastArg];
+			lastArg --;
+		}
+
+		var inds;
+		if ( Array.isArray( indexes ) ) {
+			inds = indexes;
+		} else {
+			inds = [];
+			for ( var i = 2; i <= lastArg; i ++ ) {
+				inds[i-2] = arguments[i];
+			}
+		}
+
+		assertIndexesArray( inds );
 
 		var dims = variable.dims;
-		if ( dims && dims.length ) {
-			var indexes = _.toArray( arguments ).slice( 2 );
+		var stride = variable.type.size;
 
-			setDimension( 0, variable.offset, variable.type.size );
+		for ( var i = 0; i < dims.length; i ++ )
+			stride *= dims[i];
 
-			function setDimension( d, offset, stride ) {
-				var isLeaf = d == dims.length;
 
-				//console.warn ( "setDimension", d, offset, stride )
+		setDimension( 0, values, variable.offset, stride );
 
-				if ( isLeaf ) {
-					poke( offset, buffer )
-				} else {
-					var dim = dims[d];
-					var index = parseInt( indexes[d] );
-					if ( isNaN( index ) ) {
-						for ( index = 0; index < dim; index ++ ) 
-							setDimension( d + 1, offset + stride * index, stride * dim );
-					} else {
-						setDimension( d + 1, offset + stride * index, stride * dim );
+		function setDimension( d, value, offset, stride ) {
+			var isLeaf = d == dims.length;
+
+			//console.warn ( "setDimension", d, offset, stride )
+
+			if ( isLeaf ) {
+				if ( Array.isArray( value ) )
+					throw new TypeError( 'Too many dimension in value' );
+
+				if ( value === undefined )
+					return;
+
+				poke( offset, type.toBuffer( value ) );
+			} else {
+				var dim = dims[d];
+				stride /= dim;
+				var index = parseInt( inds[d] );
+				if ( isNaN( index ) ) {
+					for ( index = 0; index < dim; index ++ ) {
+						v = Array.isArray( value ) ? value[index] : value;
+						setDimension( d + 1, v, offset + stride * index, stride );
 					}
+				} else {
+					setDimension( d + 1, value, offset + stride * index, stride );
 				}
 			}
-
-		} else {
-			poke( variable.offset, buffer );
 		}
+
 	}
 
 	commands.varRead = varRead;
-	function varRead( varName, cb ) {
+	function varRead( varName, indexes, cb ) {
 		var variable = _variables[varName];
 		if ( !variable )
 			throw new Error( 'Variable not found '+varName );
 
-		if ( cb ) {
-			var peekCallback = function ( err, buffer ) {
-				if ( err )
-					cb( err )
-				else
-					cb( null, variable.type.fromBuffer( buffer ) );
+		var type = variable.type;
+
+		var lastArg = arguments.length - 1;
+		if ( 'function' == typeof arguments[lastArg] ) {
+			cb = arguments[lastArg];
+			lastArg --;
+		}
+
+		var inds;
+		if ( Array.isArray( indexes ) ) {
+			inds = indexes;
+		} else {
+			inds = [];
+			for ( var i = 2; i <= lastArg; i ++ ) {
+				inds[i-2] = arguments[i];
 			}
 		}
 
-		var buffer = peek( variable.offset, variable.length, peekCallback );
+		if ( cb ) {
+			var peekCallback = function ( err ) {
+				if ( err )
+					cb( err )
+				else
+					cb( null, varReadLocal( varName, inds ) );
+			}
+		}
 
-		return variable.type.fromBuffer( buffer );
+		return varReadLocal( varName, inds );
+	} 
+
+	commands.varReadLocal = varReadLocal;
+	function varReadLocal( varName ) {
+		var variable = _variables[varName];
+		if ( !variable )
+			throw new Error( 'Variable not found '+varName );
+
+		var dims = variable.dims;
+		var inds = _.toArray( arguments ).slice( 1 );
+
+		var memory = self.memory;
+
+		if ( inds > dims.length ) 
+			throw new Error( 'Too many dimensions' );
+
+
+		var stride = variable.type.size;
+		for ( var i = 0; i < dims.length; i ++ )
+			stride *= dims[i];
+
+		return getDimension( 0, variable.offset, stride );
+
+		function getDimension ( d, offset, stride ) {
+			var isLeaf = d == dims.length;
+			if ( isLeaf ) {
+				return variable.type.fromBuffer( memory, offset );
+			} else {
+				var dim = dims[d];
+				stride /= dim;
+				var index = parseInt( inds[d] );
+				if ( isNaN( index ) ) {
+					var ret = []
+					for ( index = 0; index < dim; index ++ ) 
+						ret[index] = getDimension( d + 1, offset + stride * index, stride );
+
+					return ret;
+				} else {
+					return getDimension( d + 1, offset + stride * index, stride );
+				}
+			}
+		}
+
 	} 
 
 
 	commands.reset = reset;
 	function reset () {
-		_sendCommand( Protocol.reset, 0 );
+		queueOutput( packOutput( 
+			packCommand( Protocol.reset )
+		) );
 	}	 
 
 	self.Protocol = Protocol;
 
 }
 
-
-
 module.exports = Ardnodeo;
+
+
+function assertIndexesArray ( arr ) {
+	for ( var i = 0; i <  arr.length; i ++ ) {
+		var val = arr[i];
+		if ( val === null || val === undefined ) 
+			continue;
+
+		if ( Array.isArray( val ) ) {
+			assertIndexesArray( val );
+			continue;
+		}
+
+		if ( 'number' != typeof val )
+			throw new TypeError( 'Index must be number or null' );
+
+		if ( val != parseInt( val ) )
+			throw new TypeError( 'Index must be integer' );
+	}
+
+}
 
 
 

@@ -11,7 +11,7 @@
 #define ACTIVITY_PIN 13
 
 // Size of convolution kernel
-#define KERNEL_SIZE 9
+#define KERNEL_SIZE 10
 
 // RGB, 'cause no magic numbers, right?
 #define CHANNELS 3
@@ -21,9 +21,10 @@
 struct data_t {
   //#ARDNODEO_VARS
   int16_t   snowFreq; // Add random snow locally
-  bool      convolutionActive;
-  int8_t    kernelOrigin;
-  int8_t    kernel[CHANNELS][KERNEL_SIZE];
+  bool      convolutionActive;  // Whether to run convolution
+  bool      normalizeKernel; // Whether to automatically set kerndelDiv
+  int8_t    kernelOrigin; // Centre point of convolution kernel
+  int8_t    kernel[CHANNELS][KERNEL_SIZE]; // Actual kernel
   uint16_t  kernelDiv[CHANNELS];
   CRGB      edgeColour;
   CRGB      ledBuffer[STRIP_LENGTH];
@@ -65,6 +66,7 @@ void setup() {
 
   data.kernelDiv[2] = 60;
  
+  data.normalizeKernel = true;
 
 /*
   data.snowFreq = 2;
@@ -90,6 +92,15 @@ bool activity= false;
 
 
 void convolve () {
+  if ( data.normalizeKernel ) {
+    for ( uint8_t channel = 0; channel < CHANNELS; channel++ ) {
+      data.kernelDiv[channel] = 1;
+      for ( int x = 0; x < KERNEL_SIZE; x ++ )
+        data.kernelDiv[channel] += data.kernel[channel][x];
+    }
+  }
+
+
   // kernelOrigin currently must be inside the kernel.
   data.kernelOrigin = max( min( data.kernelOrigin, KERNEL_SIZE - 1 ), 0 );
 
@@ -115,7 +126,7 @@ void convolve () {
     }
 
 		for ( uint8_t channel = 0; channel < CHANNELS; channel++ ) {
-			int16_t accumulator = 0;
+			int32_t accumulator = 0;
       uint8_t kx = 0;
 			for ( int16_t x = left; x < right; x ++ ) {
         // Value from either inside data.ledBuffer or edgeColour
