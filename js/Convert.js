@@ -39,7 +39,13 @@ exports.Buffer = {
 		return v / 4096;
 	},
 	CRGB: function ( buffer, offset ) {
+		offset = offset || 0;
 
+		var r = buffer.readUInt8(offset+0);
+		var g = buffer.readUInt8(offset+1);
+		var b = buffer.readUInt8(offset+2);
+
+		return new onecolor.RGB( r / 255, g / 255, b / 255 );
 	}
 }
 
