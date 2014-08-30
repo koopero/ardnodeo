@@ -49,7 +49,7 @@ public:
 		};
 
 		enum Status {
-			received = 1 
+			received = 2
 		};
 		//#/ARDNODEO_PROTOCOL
 	};
@@ -73,8 +73,6 @@ protected:
 
 	void sendReturn ( unsigned char commandId, unsigned char arg = 0 );
 	void sendByte ( unsigned char byte );
-
-	void(* resetFunc) (void) = 0;
 	
 };
 

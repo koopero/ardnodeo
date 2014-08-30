@@ -1,5 +1,5 @@
 #include "Ardnodeo.h"
-
+#include <avr/wdt.h>
 
 void Ardnodeo::setup () {
 
@@ -130,7 +130,10 @@ void Ardnodeo::receive() {
 
         case Protocol::reset :
         {
-          resetFunc();
+          wdt_enable(WDTO_15MS);
+          while(1)
+          {
+          }
         }
         break;
 
