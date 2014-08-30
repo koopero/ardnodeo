@@ -75,13 +75,15 @@ function showVars ( out, vars ) {
 		}
 
 		if ( v.comment ) {
-			line += ('// '+v.comment).varComment;
+			line += ('  // '+v.comment).varComment;
 		}
 
 
-		line += '\n\r';
+		line += '\n';
 		out.write( line );
 	}
+
+	out.write('\n');
 }
 
 function prettyHexShort ( num ) {
