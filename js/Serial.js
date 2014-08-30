@@ -34,10 +34,10 @@ function Serial ( opt ) {
 				self.port.close.bind( self.port )
 			], function () {
 				self.port = null;
-				
-				cb();
+				if ( cb )
+					cb();
 			} );
-		} else {
+		} else if ( cb ) {
 			cb( new Error( "Already closed" ) );
 		}
 		
