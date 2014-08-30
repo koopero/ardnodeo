@@ -8,6 +8,7 @@ const Types = require('./Types');
 const REGEX = {
 	DEFINE: /\#define\s*([a-zA-Z_][a-zA-Z0-9_]+)\s*(.*)/g,
 	SECTION: "\\/\\/\\s*\\#SECTION_NAME([\\s\\S]*)\\/\\/\\s*\\#\\/SECTION_NAME",
+	VAR_LINE: /\s*(.*?);\s*(\/\/\s*(.*?)$)?/mg,
 	VAR_DEC: /\s*([a-zA-Z_][a-zA-Z0-9]+)\s*((\[(.*)\])*)$/,
 	COMMENTS_MULTILINE: /\/\*.*?\*\//mg,
 	COMMENTS_LINE: /\/\/.*?$/mg,
@@ -72,8 +73,6 @@ function parseSource ( source ) {
 
 	var varsDeclaration = isolateSection( source, "ARDNODEO_VARS" );
 
-	console.log( "varsDeclaration", varsDeclaration );
-
 	if ( varsDeclaration ) {
 		parsed.vars = parseVarsDeclaration( varsDeclaration, parsed );
 	}
@@ -90,23 +89,25 @@ function parseVarsDeclaration ( source, parsed ) {
 
 	source = removeComments( source );
 
-	var lines = source.split(';');
 
-	lines.forEach( function ( line ) {
+	var match;
+	while ( match = REGEX.VAR_LINE.exec( source ) ) {
+		var line = match[1];
 		var _var = parseVar( line, parsed );
 		if ( _var ) {
+			_var.comment = match[3];
 			_var.offset = offset;
 			offset += _var.size;
-			vars[ _var.name] = _var;
+			vars[ _var.name] = _var;			
 		}
-	});
+	}
 
 	return vars;
 }
 
 function removeComments ( source ) {
 	source = source.replace( REGEX.COMMENTS_MULTILINE, '' );
-	source = source.replace( REGEX.COMMENTS_LINE, '' );
+	//source = source.replace( REGEX.COMMENTS_LINE, '' );
 	
 	return source;	
 }
