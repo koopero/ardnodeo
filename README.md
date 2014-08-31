@@ -12,7 +12,7 @@ void setup() {
 }
 
 void loop() {
-  node.update();
+  node.loop();
 }
 ```
 ### Blink.js
