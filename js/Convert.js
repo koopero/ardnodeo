@@ -46,6 +46,12 @@ exports.Buffer = {
 		var b = buffer.readUInt8(offset+2);
 
 		return new onecolor.RGB( r / 255, g / 255, b / 255 );
+	},
+	timecode: function ( buffer, offset ) {
+		offset = offset || 0;
+		
+		return 
+			buffer.readUInt32LE( offset + 0 ) / 1000;
 	}
 }
 

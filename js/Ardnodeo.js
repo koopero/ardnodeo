@@ -116,7 +116,7 @@ function Ardnodeo ( opt ) {
 			for ( var ri = 0; ri < _receiveQueue.length; ri ++ ) {
 				var receiver = _receiveQueue[ri];
 
-				if ( receiver.command != _receiveCommand )
+				if ( receiver.command && receiver.command != _receiveCommand )
 					continue;
 
 				var need = receiver.buffer.length - receiver.got;
@@ -182,26 +182,76 @@ function Ardnodeo ( opt ) {
 		//console.log( "Got command", command, Protocol );
 
 		switch ( command ) {
-			case Protocol.Tick:
-				//console.log( "tick");
+			case Protocol.timecode:
+				_receiveCommand = Protocol.timecode;
+				var size = arg0 + 1;
+				receiveBuffer( Protocol.timecode, size, function ( err, buffer ) {
+					if ( !err ) {
+						var timecode = Convert.Buffer.timecode( buffer );
+						self.emit( 'timecode', timecode );
+					}
+				} );
 
-				self.emit('tick', arg0 );
+			// Not breaking here, so that output will start flowing
+			// After
 
-
-			case Protocol.status:
-				//console.log( "received!");
+			case Protocol.acknowledge:
 				outputRegulator.allow = serialBufferSize;
 				flushOutput();
 			break;
+
+
+			case Protocol.event :
+				_receiveCommand = Protocol.event;
+				receiveBuffer( Protocol.event, 1, function ( err, buffer ) {
+					if ( err ) {
+						let eventCode = buffer.readUInt8(0);
+						self.emit( eventCode );
+					}
+				} );
+			break;
+
+			case Protocol.poke:
+
+			break;
+
+			case Protocol.analogRead:
+
+			break;
+
+			case Protocol.digitalRead:
+				
+			break;
+
+
 
 			case Protocol.peek:
 				//console.log( "GOT PEEK" );
 				_receiveCommand = Protocol.peek;
 			break;
+
+			case Protocol.poke:
+				_receiveCommand = Protocol.poke;
+				var size = arg0 + 1;
+				var offsetBuffer = new Buffer( 2 );
+				var inputBuffer = new Buffer( size );
+				var offset;
+				receiveBuffer( Protocol.poke, offsetBuffer, function ( err ) {
+					offset = offsetBuffer.readUInt16LE( 0 );
+					_receiveCommand = Protocol.poke;
+				});
+				receiveBuffer( Protocol.poke, inputBuffer, function ( err ) {
+					console.warn ( "Got MARK", offset, inputBuffer );
+				} );
+
+			break;
 		}
 	}
 
 	function receiveBuffer( command, buffer, cb ) {
+		if ( 'number' == typeof buffer )
+			buffer = new Buffer( buffer );
+
 		_receiveQueue.push( {
 			command: command,
 			got: 0,
@@ -276,6 +326,11 @@ function Ardnodeo ( opt ) {
 
 	var commands = self;
 
+	command.sendEvent = sendEvent;
+	function sendEvent ( eventCode ) {
+
+	}
+
 	commands.pinMode = function ( pin, mode ) {
 		pin = parseInt( pin );
 		mode = parseInt( mode );
@@ -328,6 +383,8 @@ function Ardnodeo ( opt ) {
 			buffer = buffer.slice( size );
 		}
 	}
+
+	
 
 	commands.peek = peek;
 	function peek ( offset, buffer, cb ) {

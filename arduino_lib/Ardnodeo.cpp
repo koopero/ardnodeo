@@ -1,165 +1,257 @@
 #include "Ardnodeo.h"
 #include <avr/wdt.h>
 
+Ardnodeo::Timecode::Timecode () {
+	ms = millis();
+	ns = micros();
+}
+
 void Ardnodeo::setup () {
 
 }
 
-void Ardnodeo::update () {
-  //if ( options & Protocol::Tick ) {
-    tick();
-  //}
-  receive();
+bool Ardnodeo::catchEvent( event_t eventCode ) {
+	uint8_t byteIndex = eventCode >> 3;
+	uint8_t bitIndex = eventCode & 7;
+	uint8_t bit = 1 << bitIndex;
+
+	if ( _incomingEvents[byteIndex] & bit ) {
+		_incomingEvents[byteIndex] ^= bit;
+		return true;
+	}
+
+	return false;
 }
 
-void Ardnodeo::tick() {
-  //if ( Serial )
-    sendReturn( Protocol::Tick );
+bool Ardnodeo::loop( ms_t minDelay, ms_t maxDelay ) {
+	Timecode timecode = Timecode();
+
+	if ( ( flags & Protocol::connected ) && ( flags & Protocol::timecode ) ) {
+		sendTimecode( timecode );
+	}
+
+	unsigned long age;
+	do {
+		while ( receiveCommand() ) {
+			flags |= Protocol::connected;
+			if ( !sendAcknowledge() ) {
+				flags &= ~Protocol::connected;
+				break;
+			}
+			age = millis() - timecode.ms;
+
+			if ( maxDelay && age >= maxDelay )
+				return false;
+		};
+		
+		if ( age + 1 < minDelay )
+			delay(1);
+
+	} while ( age < minDelay );
+
+	return true;
 }
 
-bool Ardnodeo::catchEvent( uint8_t eventCode ) {
-  uint8_t byteIndex = eventCode >> 3;
-  uint8_t bitIndex = eventCode & 7;
-  uint8_t bit = 1 << bitIndex;
+bool Ardnodeo::sendEvent( event_t event ) {
+	return 
+		sendCommand( Protocol::event )
+		&& sendByte( event )
+	;
+}
 
-  if ( _incomingEvents[byteIndex] & bit ) {
-    _incomingEvents[byteIndex] ^= bit;
-    return true;
-  }
+bool Ardnodeo::sendAcknowledge() {
+	return sendCommand(
+		Protocol::acknowledge,
+		flags
+	);
+}
 
-  return false;
+bool Ardnodeo::sendTimecode( Timecode timecode ) {
+	return 
+		sendCommand ( 
+			Protocol::timecode,
+			sizeof( Timecode ) + 1
+		)
+		&& sendMemory( &timecode, sizeof( Timecode ) );
+}
+
+bool Ardnodeo::receiveCommand() {
+	int commandsProcessed;
+
+	if ( !Serial.available() )
+		return false;
+
+	uint8_t command = Serial.read();
+	
+	// Bottom nibble is arg0
+	uint8_t arg0 = command & 0xf;
+
+	// Top nibble of command is actual command
+	command = command >> 4;
+
+	switch ( command ) {
+
+		case Protocol::setFlags :
+		{
+			uint8_t newFlags = readByte();
+			if ( lastReadOkay ) {
+				flags = newFlags;
+				return true;
+			}
+		}
+		break;
+
+		case Protocol::event :
+		{
+			event_t eventCode = readByte();
+			if ( lastReadOkay ) {
+				uint8_t byteIndex = eventCode >> 3;
+				uint8_t bitIndex = eventCode & 7;
+				uint8_t bit = 1 << bitIndex;
+
+				_incomingEvents[byteIndex] |= bit;
+			}
+		}
+		break;
+
+		//	------------
+		//	Pin Commands
+		//	------------
+
+		case Protocol::pinMode :
+		case Protocol::analogWrite :
+		case Protocol::analogRead :
+		case Protocol::digitalWrite :
+		case Protocol::digitalRead :
+		{
+			uint8_t pinId = readByte();
+			switch ( command ) {
+				case Protocol::pinMode :
+				{
+					switch ( arg0 ) {
+						case Protocol::Output:       pinMode( pinId, OUTPUT ); break;
+						case Protocol::Input:        pinMode( pinId, INPUT ); break;
+						case Protocol::InputPullup:  pinMode( pinId, INPUT_PULLUP ); break;
+					}
+					return true;
+				}
+				case Protocol::analogWrite :
+				{
+					clamp8 value = readByte();
+					if ( lastReadOkay ) {
+						analogWrite( pinId, value );
+						return true;
+					}
+				}
+				break;
+
+				case Protocol::analogRead :
+				{
+					return 
+						sendCommand( Protocol::analogRead )
+						&& sendByte( pinId )
+						&& sendWord( analogRead( pinId) )
+					;
+				}
+
+
+				case Protocol::digitalWrite :
+				{
+
+					digitalWrite( pinId, arg0 ? HIGH : LOW );
+
+					return true;
+				}
+				break;
+
+				case Protocol::digitalRead :
+				{
+					return 
+						sendCommand( Protocol::analogRead )
+						&& sendByte( pinId )
+						&& sendByte( digitalRead( pinId ) )
+					;
+				}
+			}
+		}
+		break;
+
+		//	---------------
+		//	Memory Commands
+		//	---------------
+
+		case Protocol::poke :
+		case Protocol::peek :
+		{
+			uint8_t size = arg0 + 1;
+			uint16_t offset = readUnsignedShort();
+			if ( !lastReadOkay )
+				return false;
+
+			char * memory = (char*)((int) data + (int) offset);
+
+			switch ( command ) {
+				case Protocol::peek :
+				{
+					return 
+						sendCommand( Protocol::peek )
+						&& sendMemory( memory, size );
+				}
+				case Protocol::poke : 
+				{
+					return readMemory(  memory, size );
+				}
+			}
+		}
+		break;
+	}
+
+	return false;
+}
+
+
+bool Ardnodeo::sendCommand( uint8_t cmd, uint8_t arg ) {
+	return sendByte( 
+		128 |  // All returns have top bit set
+		( ( cmd & 0xf ) << 4 ) |
+		( arg & 0xf )
+	);
+}
+
+bool Ardnodeo::pokeMemory( void * loc, size_t size, bool force ) {
+	int16_t offset =  (int) loc - (int) data;
+	return 
+		sendCommand( Protocol::poke, size - 1 )
+		&& sendWord( offset )
+		&& sendMemory( loc, size )
+	;
 }
 
 
 
-void Ardnodeo::receive() {
-  int commandsProcessed;
+bool Ardnodeo::sendByte( uint8_t byte ) {
+	if ( ~flags & Protocol::connected )
+		return false;
 
-  do { 
-    commandsProcessed = 0;
-
-    while ( Serial.available() ) {
-      uint8_t command = Serial.read();
-      
-      // Bottom nibble is arg0
-      uint8_t arg0 = command & 0xf;
-
-      // Top nibble of command is actual command
-      command = command >> 4;
-
-      //Serial.println("Got command");
-      //Serial.println(command, DEC );
-
-      switch ( command ) {
-        case Protocol::pinMode :
-        {
-          uint8_t pinId = Serial.read();
-          switch ( arg0 ) {
-            case Protocol::Output:       pinMode( pinId, OUTPUT ); break;
-            case Protocol::Input:        pinMode( pinId, INPUT ); break;
-            case Protocol::InputPullup:  pinMode( pinId, INPUT_PULLUP ); break;
-          }
-          commandsProcessed ++;
-        }
-        break;
-
-        case Protocol::digitalWrite :
-        {
-          uint8_t pinId = readByte();
-          digitalWrite( pinId, arg0 ? HIGH : LOW );
-
-          commandsProcessed ++;
-        }
-        break;
-
-        case Protocol::analogWrite :
-        {
-          uint8_t pinId = readByte();
-          uint8_t value = readByte();
-
-          analogWrite( pinId, value );
-
-          commandsProcessed ++;
-        }
-        break;
-
-        case Protocol::poke :
-        {
-          uint16_t offset = readUnsignedShort();
-          if ( !lastReadOkay )
-            break;
-
-          uint8_t size = arg0 + 1;
-          char * p = (char*)((int) data + (int) offset);
-
-          Serial.readBytes( p, size );
-          commandsProcessed ++;
-        }
-        break;
-
-        case Protocol::peek :
-        {
-          uint16_t offset = readUnsignedShort();
-          if ( !lastReadOkay )
-            break;
-
-          uint8_t size = arg0 + 1;
-          uint8_t * p = (uint8_t*)((int) data + (int) offset);
-
-          /*
-          Serial.println( "Got peek" );
-          Serial.println( offset, DEC );
-          Serial.println( size, DEC );
-          */
-
-          sendReturn( Protocol::peek, arg0 );
-
-          Serial.write( p, size );
-
-          commandsProcessed ++;
-        }
-        break;
-
-        case Protocol::setFlags :
-        {
-          uint8_t newOptions = readByte();
-          if ( lastReadOkay )
-            options = newOptions;
-        }
-        break;
-
-        case Protocol::reset :
-        {
-          wdt_enable(WDTO_15MS);
-          while(1)
-          {
-          }
-        }
-        break;
-
-      }
-    };
-
-    sendReturn( Protocol::status, Protocol::received );
-
-    delay( 2 );
-
-  } while ( commandsProcessed );
+	Serial.write( byte );
+	return true;
 }
 
-
-
-void Ardnodeo::sendReturn( uint8_t cmd, uint8_t arg ) {
-  sendByte( 
-    128 |  // All returns have top bit set
-    ( ( cmd & 0xf ) << 4 ) |
-    ( arg & 0xf )
-  );
+bool Ardnodeo::sendWord ( uint16_t word ) {
+	return sendByte( word & 0xff ) && sendByte( word >> 8 );
 }
 
+bool Ardnodeo::sendMemory( void * buf, size_t length ) {
+	while ( length && sendByte( ((uint8_t*)buf)[0] ) ) {
+		buf = (void*)((int)buf+1);
+		length --;
+	}
+	return !length;
+}
 
-inline void Ardnodeo::sendByte( uint8_t byte ) {
-  Serial.write( byte );
+bool Ardnodeo::readMemory( void * buf, size_t length ) {
+	Serial.write( (char * )buf, length );
+	return true;
 }
 
 
