@@ -1,10 +1,11 @@
 var Ardnodeo = require('../../js/index');
 
-var ard = Ardnodeo.Bootstrap();
-ard.source( "InputVars.ino" );
+var arduino = Ardnodeo.Bootstrap();
+arduino.source( "InputVars.ino" );
 
-ard.setTick( true );
+arduino.vars.buttonState.on('change', function ( value, index ) {
+	console.log( 'Button '+(index[0]+1)+' is '+( value ? 'down' : 'up' )+'. ' );
+});
 
 
-
-require( '../../js/Prompt' )( ard );
+var prompt = require( '../../js/Prompt' )( arduino );
