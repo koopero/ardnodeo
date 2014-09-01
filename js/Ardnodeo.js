@@ -29,7 +29,7 @@ function Ardnodeo ( opt ) {
 		_variables = Object.create( null ),
 		serialBufferSize = 32,
 		outputRegulator = new Regulator( serialBufferSize ),
-		timecode = new Timecode ()
+		timecodeReader = new (Timecode.Reader) ()
 	;
 
 	opt = opt || {};
@@ -55,9 +55,12 @@ function Ardnodeo ( opt ) {
 
 	
 	function close ( cb ) {
-		sendImmediate(
-			packCommand( Protocol.setFlags, 0 )
-		);
+
+		sendImmediate( packOutput (
+			packCommand( Protocol.setFlags, Protocol.opAnd ),
+			~Protocol.connected
+		) );
+
 
 		_connection.close();
 	}
@@ -69,6 +72,7 @@ function Ardnodeo ( opt ) {
 
 		connection.on('data', onData );
 		connection.on('open', function () {
+			//console.warn('open');
 			self.emit('open');
 			sendImmediate( packCommand ( 
 				Protocol.hello
@@ -194,14 +198,14 @@ function Ardnodeo ( opt ) {
 				size = 8;
 				receiveBuffer( Protocol.timecode, size, function ( err, buffer ) {
 					if ( !err ) {
-						timecode.readBuffer( buffer );
-						//console.warn( 'timecode', timecode );
-						self.emit( 'timecode', timecode );
+
+						var tc = timecodeReader.readBuffer( buffer );
+						self.timecode = tc;
+						//console.warn( 'timecode', tc );
+						self.emit( 'timecode', tc );
 					}
 				} );
-
-			// Not breaking here, so that output will start flowing
-			// After
+			break;
 
 			case Protocol.acknowledge:
 				outputRegulator.allow = serialBufferSize;
@@ -300,7 +304,7 @@ function Ardnodeo ( opt ) {
 				buffer = arg;
 			else if ( 'number' == typeof arg ) {
 				buffer = new Buffer( 1 )
-				buffer[1] = arg;
+				buffer.writeUInt8( arg & 0xff, 0 );
 			} else if ( 'string' == typeof arg ) {
 				buffer = new Buffer( arg, 'ascii' );
 			} else
@@ -334,6 +338,7 @@ function Ardnodeo ( opt ) {
 
 	function sendImmediate( buffer ) {
 		if ( _connection.write ) {
+			//console.log( "sendImmediate", buffer );
 			_connection.write( buffer );
 			return true;
 		}
@@ -386,13 +391,6 @@ function Ardnodeo ( opt ) {
 
 	commands.analogRead = function ( pin, callback ) {
 
-	}
-
-	commands.setTick = setTick; 
-	function setTick ( v ) {
-		queueOutput( packOutput( 
-			packCommand( Protocol.setFlags, v ? Protocol.Tick : 0 )
-		) );
 	}
 
 	commands.poke = poke;

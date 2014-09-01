@@ -6,9 +6,6 @@ var onecolor = require('onecolor');
 var ard = Ardnodeo.Bootstrap();
 ard.source( "FastLED.ino" );
 
-ard.setTick( true );
-
-
 require( '../../js/Prompt' )( ard );
 
 
@@ -19,7 +16,6 @@ var colour = new onecolor( "red" );
 var NUM_LEDS = ard.define.NUM_LEDS; 
 
 var phase;
-//tick();
 function tick () {
 	return;
 	if ( phase === undefined ) phase = Math.random() * 1000;

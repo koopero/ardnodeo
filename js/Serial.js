@@ -33,6 +33,7 @@ function Serial ( opt ) {
 				self.port.flush.bind( self.port ),
 				self.port.close.bind( self.port )
 			], function () {
+				self.port.removeAllListeners();
 				self.port = null;
 				if ( cb )
 					cb();
@@ -75,7 +76,8 @@ function Serial ( opt ) {
 	}
 
 	function delayReconnect() {
-		setTimeout( open, 100 );
+		if ( self.stayOpen )
+			setTimeout( open, 100 );
 	}
 
 	function _onSerialData ( data ) {

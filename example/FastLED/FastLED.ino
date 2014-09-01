@@ -151,9 +151,14 @@ void loop() {
 
   
   // Blink the onboard LED to show activity
+  /*
   static bool activityBlinker = false;
 	activityBlinker = !activityBlinker;
 	digitalWrite( ACTIVITY_PIN, activityBlinker ? HIGH : LOW );
+  */
+
+  // Set onboard LED to whether ardnodeo is connected
+  digitalWrite( ACTIVITY_PIN, node.flags & 2 ? HIGH : LOW );
 
   node.loop();
 

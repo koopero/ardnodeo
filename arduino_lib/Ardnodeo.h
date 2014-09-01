@@ -46,6 +46,12 @@ public:
 			connected = 1,
 			timecode = 2
 		};
+
+		enum Operators { 
+			opSet = 0,
+			opAnd = 1,
+			opOr  = 2
+		};
 		//#/ARDNODEO_PROTOCOL
 	};
 
@@ -59,8 +65,9 @@ public:
 
 	void setup();
 	
-	void tick ();
 	bool loop( ms_t minDelay = 0, ms_t maxDelay = 0 );
+
+	bool isConnected();
 	
 	bool flush();
 

@@ -11,6 +11,10 @@ void Ardnodeo::setup () {
 	flags |= Protocol::connected;
 }
 
+bool Ardnodeo::isConnected () {
+	return flags & Protocol::connected;
+}
+
 bool Ardnodeo::catchEvent( event_t eventCode ) {
 	uint8_t byteIndex = eventCode >> 3;
 	uint8_t bitIndex = eventCode & 7;
@@ -32,21 +36,27 @@ bool Ardnodeo::loop( ms_t minDelay, ms_t maxDelay ) {
 	}
 
 	unsigned long age;
+	bool sendAck = true;
 	do {
 		age = millis() - timecode.ms;
 
-
 		while ( receiveCommand() ) {
+			// If we're getting command, we're connected.
 			flags |= Protocol::connected;
 
 			age = millis() - timecode.ms;
 
 			if ( maxDelay && age >= maxDelay )
 				return false;
+
+			sendAck = true;
 		};
 
-		if ( !sendAcknowledge() ) {
-			flags &= ~Protocol::connected;
+		if ( sendAck ) {
+			if ( !sendAcknowledge() ) {
+				flags &= ~Protocol::connected;
+			}
+			sendAck = false;
 		}
 
 		
@@ -118,7 +128,23 @@ bool Ardnodeo::receiveCommand() {
 		{
 			uint8_t newFlags = readByte();
 			if ( lastReadOkay ) {
-				flags = newFlags;
+				switch ( arg0 ) {
+					case Protocol::opSet :
+						flags = newFlags;
+					break;
+
+					case Protocol::opAnd :
+						flags &= newFlags;
+					break;
+
+					case Protocol::opOr :
+						flags |= newFlags;
+					break;
+
+					default:
+						return false;
+				}
+				
 				return true;
 			}
 		}
