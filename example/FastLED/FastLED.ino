@@ -16,13 +16,13 @@
 // RGB, 'cause no magic numbers, right?
 #define CHANNELS 3
 
-#define clamp(v) ((v)>255?255:(v)<0?0:(v))
+
 
 struct data_t {
   //#ARDNODEO_VARS
   int16_t   snowFreq; // Add random snow locally
   bool      convolutionActive;  // Whether to run convolution
-  bool      normalizeKernel; // Whether to automatically set kerndelDiv
+  bool      normalizeKernel; // Whether to automatically set kernelDiv
   int8_t    kernelOrigin; // Centre point of convolution kernel
   int8_t    kernel[CHANNELS][KERNEL_SIZE]; // Actual kernel
   uint16_t  kernelDiv[CHANNELS];
@@ -31,16 +31,20 @@ struct data_t {
   //#/ARDNODEO_VARS
 } data;
 
-ArdnodeoData<data_t> node = ArdnodeoData<data_t>( &data );
+// Useful little clamp function
+#define clamp(v) ((v)>255?255:(v)<0?0:(v))
 
+
+ArdnodeoData<data_t> node = ArdnodeoData<data_t>( &data );
 
 void setup() {                
   FastLED.addLeds<STRIP_TYPE, STRIP_PIN, STRIP_FORMAT>(data.ledBuffer, STRIP_LENGTH);
 
+  // Pre-initialize some seeting, mostly so this thing will look 
+  // good without node attached.
+
   data.snowFreq = 6;
   
-  // Pre-initialize the kernal, mostly so this thing will work without
-  // node attached.
   data.kernelOrigin = 4;
 
   data.kernel[0][3] = 10;
@@ -67,25 +71,10 @@ void setup() {
   data.kernelDiv[2] = 60;
  
   data.normalizeKernel = true;
-
-/*
-  data.snowFreq = 2;
-
-  data.kernel[0][4] = 10;
-  data.kernel[0][5] = 10;
-  
-  data.kernelDiv[0] = 21;
-  
-  data.kernel[1][2] = 20;
-  data.kernelDiv[1] = 21;
-  
-  data.kernel[2][6] = 15;
-  data.kernelDiv[2] = 16;
-*/
+  data.convolutionActive = true;
 
   node.setup();
 
-  data.convolutionActive = true;
 }
 
 bool activity= false;
@@ -166,8 +155,7 @@ void loop() {
 	activityBlinker = !activityBlinker;
 	digitalWrite( ACTIVITY_PIN, activityBlinker ? HIGH : LOW );
 
-  // 
-  node.update();
+  node.loop();
 
   if ( data.snowFreq && !( frame % data.snowFreq ) ) {
     uint16_t index = random(STRIP_LENGTH);
@@ -177,10 +165,6 @@ void loop() {
   }
   frame ++;
 
-
-
-  
-  //renderDebug( ledState ? 255 : 30, 0, 40 );
   FastLED.show();
 
   if ( data.convolutionActive )

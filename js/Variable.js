@@ -29,6 +29,10 @@ function Variable ( name, opt ) {
 	_const( 'offset', opt.offset );
 	_const( 'dims', opt.dims || [] );
 
+	if ( opt.comment ) {
+		_const( 'comment', opt.comment );
+	}
+
 	var length = 1;
 	self.dims.forEach( function ( dim ) {
 		length *= dim;

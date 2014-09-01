@@ -492,7 +492,7 @@ function Ardnodeo ( opt ) {
 			return;
 		}
 
-		var variable = new Variable( varName, opt );
+		var variable = opt instanceof Variable ? opt : new Variable( varName, opt );
 
 		_variables[varName] = variable;
 

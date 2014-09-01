@@ -272,8 +272,8 @@ bool Ardnodeo::sendMemory( void * buf, size_t length ) {
 }
 
 bool Ardnodeo::readMemory( void * buf, size_t length ) {
-	Serial.write( (char * )buf, length );
-	return true;
+	size_t read = Serial.readBytes( (char * )buf, length );
+	return read == length;
 }
 
 

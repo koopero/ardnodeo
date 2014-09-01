@@ -1,9 +1,11 @@
-const fs   = require('fs');
-const path = require('path');	
-const _ = require('underscore');
-const _s = require('underscore.string');
-const Types = require('./Types');
-
+const 
+	fs = require('fs'),
+	path = require('path'),
+	_ = require('underscore'),
+	_s = require('underscore.string'),
+	Types = require('./Types'),
+	Variable = require('./Variable')
+;
 
 const REGEX = {
 	DEFINE: /\#define\s*([a-zA-Z_][a-zA-Z0-9_]+)\s*(.*)/g,
@@ -97,7 +99,11 @@ function parseVarsDeclaration ( source, parsed ) {
 		if ( _var ) {
 			_var.comment = match[3];
 			_var.offset = offset;
+			
+
+			_var = new Variable( _var.name, _var );
 			offset += _var.size;
+
 			vars[ _var.name] = _var;			
 		}
 	}
