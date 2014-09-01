@@ -1,8 +1,11 @@
 const
 	Convert = require('./Convert'),
+	Dimensions = require('./Dimensions'),
 	Protocol = require('./Protocol'),
 	Regulator = require('./Regulator'),
 	Serial = require('./Serial'),
+	Timecode = require('./Timecode'),
+	Variable = require('./Variable'),
 	_ = require('underscore'),
 	async = require('async'),
 	util = require('util');
@@ -25,7 +28,8 @@ function Ardnodeo ( opt ) {
 		status = {},
 		_variables = Object.create( null ),
 		serialBufferSize = 32,
-		outputRegulator = new Regulator( serialBufferSize )
+		outputRegulator = new Regulator( serialBufferSize ),
+		timecode = new Timecode ()
 	;
 
 	opt = opt || {};
@@ -179,15 +183,16 @@ function Ardnodeo ( opt ) {
 
 		//process.stdout.write( "\r\0\0"+command+'\0' );
 		
-		//console.log( "Got command", command, Protocol );
-
+		
 		switch ( command ) {
 			case Protocol.timecode:
 				_receiveCommand = Protocol.timecode;
 				var size = arg0 + 1;
+				size = 8;
 				receiveBuffer( Protocol.timecode, size, function ( err, buffer ) {
 					if ( !err ) {
-						var timecode = Convert.Buffer.timecode( buffer );
+						timecode.readBuffer( buffer );
+						//console.warn( 'timecode', timecode );
 						self.emit( 'timecode', timecode );
 					}
 				} );
@@ -205,14 +210,14 @@ function Ardnodeo ( opt ) {
 				_receiveCommand = Protocol.event;
 				receiveBuffer( Protocol.event, 1, function ( err, buffer ) {
 					if ( err ) {
-						let eventCode = buffer.readUInt8(0);
+						var eventCode = buffer.readUInt8(0);
 						self.emit( eventCode );
 					}
 				} );
 			break;
 
 			case Protocol.poke:
-
+				onCommandPoke( arg0 )
 			break;
 
 			case Protocol.analogRead:
@@ -230,22 +235,41 @@ function Ardnodeo ( opt ) {
 				_receiveCommand = Protocol.peek;
 			break;
 
-			case Protocol.poke:
-				_receiveCommand = Protocol.poke;
-				var size = arg0 + 1;
-				var offsetBuffer = new Buffer( 2 );
-				var inputBuffer = new Buffer( size );
-				var offset;
-				receiveBuffer( Protocol.poke, offsetBuffer, function ( err ) {
-					offset = offsetBuffer.readUInt16LE( 0 );
-					_receiveCommand = Protocol.poke;
-				});
-				receiveBuffer( Protocol.poke, inputBuffer, function ( err ) {
-					console.warn ( "Got MARK", offset, inputBuffer );
-				} );
 
-			break;
 		}
+	}
+
+	function onCommandPoke ( arg0 ) {
+		_receiveCommand = Protocol.poke;
+		var size = arg0 + 1;
+		var offsetBuffer = new Buffer( 2 );
+		var inputBuffer = new Buffer( size );
+		var offset;
+		receiveBuffer( Protocol.poke, offsetBuffer, function ( err ) {
+			offset = offsetBuffer.readUInt16LE( 0 );
+			_receiveCommand = Protocol.poke;
+		});
+		receiveBuffer( Protocol.poke, inputBuffer, function ( err ) {
+			if ( bufferSliceIsDifferent( self.memory, offset, inputBuffer ) ) {
+				
+				growMemory( offset + inputBuffer.length );
+				inputBuffer.copy( self.memory, offset );
+				var variable = varAtOffset( offset );
+				if ( variable ) {
+					if ( variable.listeners('change').length ) {
+						var index = variable.offsetIndex( offset );
+						variable.emit( 
+							'change',
+							variable.readLocal( index ),
+							index
+						);
+					}
+				}
+			};
+
+
+			//
+		} );	
 	}
 
 	function receiveBuffer( command, buffer, cb ) {
@@ -326,7 +350,7 @@ function Ardnodeo ( opt ) {
 
 	var commands = self;
 
-	command.sendEvent = sendEvent;
+	commands.sendEvent = sendEvent;
 	function sendEvent ( eventCode ) {
 
 	}
@@ -459,30 +483,37 @@ function Ardnodeo ( opt ) {
 
 
 	commands.varConfig = varConfig;
-	function varConfig ( varName, _var ) {
+	function varConfig ( varName, opt ) {
 		if ( 'string' != typeof varName )
 			throw new TypeError ( 'Invalid var name' );
 
-		if ( _var == null ) {
+		if ( opt == null ) {
 			delete _variables[varName];
 			return;
 		}
 
-		if ( 'number' != typeof _var.offset )
-			throw new TypeError ( 'Invalid or unspecified offset' );
+		var variable = new Variable( varName, opt );
 
-		if ( 'object' != typeof _var.type )
-			throw new TypeError ( 'Invalid or unspecified type' );
-
-		_variables[varName] = _var;
+		_variables[varName] = variable;
 
 
-		_var.write = varWrite.bind( self, varName );
+		variable.write = varWrite.bind( self, varName );
+		variable.read = varRead.bind( self, varName );
+		variable.readLocal = varReadLocal.bind( self, varName );
 
+		growMemory( variable.offset + variable.size );
+	}
 
-
-		growMemory( _var.offset + _var.length );
-
+	commands.varAtOffset = varAtOffset;
+	function varAtOffset( offset ) {
+		for ( var varName in _variables ) {
+			var variable = _variables[varName];
+			if ( 
+				variable.offset <= offset 
+				&& variable.offset + variable.size > offset 
+			)
+				return variable;
+		}
 	}
 
 	function growMemory ( length ) {
@@ -495,149 +526,69 @@ function Ardnodeo ( opt ) {
 		}
 	}
 
+
 	commands.varWrite = varWrite;
 	function varWrite ( varName, values, indexes, cb ) {
-		var variable = _variables[varName];
-		if ( !variable )
-			throw new Error( 'Variable not found '+varName );
-
+		var variable = getVar( varName );
 		var type = variable.type;
+		var dim = Dimensions.parseDimensionsArguments( variable, arguments, 2, true );
 
-		var lastArg = arguments.length - 1;
-		if ( 'function' == typeof arguments[lastArg] ) {
-			cb = arguments[lastArg];
-			lastArg --;
-		}
-
-		var inds;
-		if ( Array.isArray( indexes ) ) {
-			inds = indexes;
-		} else {
-			inds = [];
-			for ( var i = 2; i <= lastArg; i ++ ) {
-				inds[i-2] = arguments[i];
-			}
-		}
-
-		assertIndexesArray( inds );
-
-		var dims = variable.dims;
-		var stride = variable.type.size;
-
-		for ( var i = 0; i < dims.length; i ++ )
-			stride *= dims[i];
-
-
-		setDimension( 0, values, variable.offset, stride );
-
-		function setDimension( d, value, offset, stride ) {
-			var isLeaf = d == dims.length;
-
-			//console.warn ( "setDimension", d, offset, stride )
-
-			if ( isLeaf ) {
-				if ( Array.isArray( value ) )
-					throw new TypeError( 'Too many dimension in value' );
-
-				if ( value === undefined )
-					return;
-
-				poke( offset, type.toBuffer( value ) );
-			} else {
-				var dim = dims[d];
-				stride /= dim;
-				var index = parseInt( inds[d] );
-				if ( isNaN( index ) ) {
-					for ( index = 0; index < dim; index ++ ) {
-						v = Array.isArray( value ) ? value[index] : value;
-						setDimension( d + 1, v, offset + stride * index, stride );
-					}
-				} else {
-					setDimension( d + 1, value, offset + stride * index, stride );
-				}
-			}
-		}
-
+		Dimensions.walkDimensions( function ( offset, value ) {
+			poke( offset, type.toBuffer( value ) );
+		}, dim, values );
 	}
 
 	commands.varRead = varRead;
 	function varRead( varName, indexes, cb ) {
-		var variable = _variables[varName];
-		if ( !variable )
-			throw new Error( 'Variable not found '+varName );
+		var variable = getVar( varName );
+		var dim = Dimensions.parseDimensionsArguments( variable, arguments, 1, true );
 
-		var type = variable.type;
+		cb = dim.callback;
 
-		var lastArg = arguments.length - 1;
-		if ( 'function' == typeof arguments[lastArg] ) {
-			cb = arguments[lastArg];
-			lastArg --;
-		}
-
-		var inds;
-		if ( Array.isArray( indexes ) ) {
-			inds = indexes;
-		} else {
-			inds = [];
-			for ( var i = 2; i <= lastArg; i ++ ) {
-				inds[i-2] = arguments[i];
+		var peekCalls = Dimensions.walkDimensions( function ( offset ) {
+			return function ( cb ) {
+				peek( offset, variable.type.size, cb );
 			}
-		}
+		}, dim );
 
+		var finalCallback;
 		if ( cb ) {
-			var peekCallback = function ( err ) {
+			finalCallback = function( err ) {
 				if ( err )
-					cb( err )
+					cb( err );
 				else
-					cb( null, varReadLocal( varName, inds ) );
+					cb( null, varReadLocal( varName, dim.indexes ) );
 			}
+		} else {
+			finalCallback = function () {};
 		}
 
-		return varReadLocal( varName, inds );
+		if ( Array.isArray( peekCalls ) ) {
+			peekCalls = _.flatten( peekCalls );
+			async.parallel( peekCalls, finalCallback );
+		} else {
+			peekCalls( finalCallback );
+		}
 	} 
 
 	commands.varReadLocal = varReadLocal;
-	function varReadLocal( varName ) {
+	function varReadLocal( varName, indexes ) {
+		var variable = getVar( varName );
+		var dim = Dimensions.parseDimensionsArguments( variable, arguments, 1, false );
+		var memory = self.memory;
+
+		return Dimensions.walkDimensions( function ( offset ) {
+			return variable.type.fromBuffer( memory, offset );
+		}, dim );
+	} 
+
+	function getVar( varName ) {
 		var variable = _variables[varName];
 		if ( !variable )
 			throw new Error( 'Variable not found '+varName );
 
-		var dims = variable.dims;
-		var inds = _.toArray( arguments ).slice( 1 );
-
-		var memory = self.memory;
-
-		if ( inds > dims.length ) 
-			throw new Error( 'Too many dimensions' );
-
-
-		var stride = variable.type.size;
-		for ( var i = 0; i < dims.length; i ++ )
-			stride *= dims[i];
-
-		return getDimension( 0, variable.offset, stride );
-
-		function getDimension ( d, offset, stride ) {
-			var isLeaf = d == dims.length;
-			if ( isLeaf ) {
-				return variable.type.fromBuffer( memory, offset );
-			} else {
-				var dim = dims[d];
-				stride /= dim;
-				var index = parseInt( inds[d] );
-				if ( isNaN( index ) ) {
-					var ret = []
-					for ( index = 0; index < dim; index ++ ) 
-						ret[index] = getDimension( d + 1, offset + stride * index, stride );
-
-					return ret;
-				} else {
-					return getDimension( d + 1, offset + stride * index, stride );
-				}
-			}
-		}
-
-	} 
+		return variable;
+	}
 
 
 	commands.reset = reset;
@@ -654,25 +605,15 @@ function Ardnodeo ( opt ) {
 module.exports = Ardnodeo;
 
 
-function assertIndexesArray ( arr ) {
-	for ( var i = 0; i <  arr.length; i ++ ) {
-		var val = arr[i];
-		if ( val === null || val === undefined ) 
-			continue;
-
-		if ( Array.isArray( val ) ) {
-			assertIndexesArray( val );
-			continue;
-		}
-
-		if ( 'number' != typeof val )
-			throw new TypeError( 'Index must be number or null' );
-
-		if ( val != parseInt( val ) )
-			throw new TypeError( 'Index must be integer' );
+function bufferSliceIsDifferent( buffer1, buffer1Offset, buffer2 ) {
+	for ( var i = 0; i < buffer2.length; i ++ ) {
+		if ( buffer1[ buffer1Offset + i ] != buffer2[i] )
+			return true;
 	}
 
+	return false;
 }
+
 
 
 

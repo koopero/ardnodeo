@@ -153,11 +153,8 @@ function parseVar ( line, parsed ) {
 				throw ParseError( "can't understand array dimension", dim );
 
 			v.dims.push( dim );
-			v.length *= dim;
 		});
 	}
-
-	v.size = v.length * v.type.size;
 
 	return v;
 }
