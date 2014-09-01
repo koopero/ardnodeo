@@ -32,23 +32,33 @@ bool Ardnodeo::loop( ms_t minDelay, ms_t maxDelay ) {
 
 	unsigned long age;
 	do {
+		age = millis() - timecode.ms;
+
+
 		while ( receiveCommand() ) {
 			flags |= Protocol::connected;
-			if ( !sendAcknowledge() ) {
-				flags &= ~Protocol::connected;
-				break;
-			}
+
 			age = millis() - timecode.ms;
 
 			if ( maxDelay && age >= maxDelay )
 				return false;
 		};
+
+		if ( !sendAcknowledge() ) {
+			flags &= ~Protocol::connected;
+		}
+
 		
 		if ( age + 1 < minDelay )
 			delay(1);
 
 	} while ( age < minDelay );
 
+	return true;
+}
+
+bool Ardnodeo::flush () {
+	Serial.flush();
 	return true;
 }
 
@@ -81,6 +91,10 @@ bool Ardnodeo::receiveCommand() {
 	if ( !Serial.available() )
 		return false;
 
+	// If we're getting input,
+	// we can assume we're connected
+	flags |= Protocol::connected;
+
 	uint8_t command = Serial.read();
 	
 	// Bottom nibble is arg0
@@ -89,8 +103,10 @@ bool Ardnodeo::receiveCommand() {
 	// Top nibble of command is actual command
 	command = command >> 4;
 
+	//	This is the master protocol switch.
+	//	Actually, a nested switch, grouped by
+	//	commands that have the similar options.
 	switch ( command ) {
-
 		case Protocol::setFlags :
 		{
 			uint8_t newFlags = readByte();
@@ -110,6 +126,8 @@ bool Ardnodeo::receiveCommand() {
 				uint8_t bit = 1 << bitIndex;
 
 				_incomingEvents[byteIndex] |= bit;
+
+				return true;
 			}
 		}
 		break;
@@ -151,6 +169,7 @@ bool Ardnodeo::receiveCommand() {
 						sendCommand( Protocol::analogRead )
 						&& sendByte( pinId )
 						&& sendWord( analogRead( pinId) )
+						&& flush ()
 					;
 				}
 
@@ -170,6 +189,7 @@ bool Ardnodeo::receiveCommand() {
 						sendCommand( Protocol::analogRead )
 						&& sendByte( pinId )
 						&& sendByte( digitalRead( pinId ) )
+						&& flush ()
 					;
 				}
 			}
@@ -195,11 +215,12 @@ bool Ardnodeo::receiveCommand() {
 				{
 					return 
 						sendCommand( Protocol::peek )
-						&& sendMemory( memory, size );
+						&& sendMemory( memory, size )
+						&& flush ();
 				}
 				case Protocol::poke : 
 				{
-					return readMemory(  memory, size );
+					return readMemory( memory, size );
 				}
 			}
 		}
@@ -224,6 +245,7 @@ bool Ardnodeo::pokeMemory( void * loc, size_t size, bool force ) {
 		sendCommand( Protocol::poke, size - 1 )
 		&& sendWord( offset )
 		&& sendMemory( loc, size )
+		&& flush ()
 	;
 }
 

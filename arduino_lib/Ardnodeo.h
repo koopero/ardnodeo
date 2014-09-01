@@ -61,6 +61,8 @@ public:
 	void tick ();
 	bool loop( ms_t minDelay = 0, ms_t maxDelay = 0 );
 	
+	bool flush();
+
 	bool catchEvent( uint8_t eventCode );
 	bool sendEvent( event_t event );
 
@@ -78,7 +80,7 @@ public:
 	bool receiveCommand ();
 
 	void * data;
-	flags_t flags = 0;
+	flags_t flags = Protocol::timecode;
 
 
 
