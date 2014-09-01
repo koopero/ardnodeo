@@ -60,6 +60,21 @@ function Prompt( ard ) {
 
 
 function showVars ( out, vars ) {
+
+	vars = _.values( vars );
+	vars.sort( function ( a, b ) {
+		if ( a.offset < b.offset )
+			return -1;
+
+		if ( a.offset > b.offset )
+			return 1;
+		
+		return 0;
+	});
+
+
+	var memLength = 0;
+
 	for ( var k in vars ) {
 		var v = vars[k];
 		var line = '';
@@ -68,7 +83,6 @@ function showVars ( out, vars ) {
 		line += _s.pad( v.type.name, 8, ' ' ).varType;
 		line += ' ';
 		line += v.name.varName;
-		
 
 		for ( var dim in v.dims ) {
 			line +='['.varDimBracket+String(v.dims[dim]).varDim+']'.varDimBracket;
@@ -81,7 +95,17 @@ function showVars ( out, vars ) {
 
 		line += '\n';
 		out.write( line );
+
+		memLength = v.offset + v.size;
 	}
+
+	line = '';
+	line += prettyHexShort( memLength ).varOffset;
+	line += ' ';
+	line += 'end'.red;
+	line += '\n';
+	
+	out.write( line );
 
 	out.write('\n');
 }
