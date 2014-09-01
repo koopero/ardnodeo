@@ -70,6 +70,9 @@ function Ardnodeo ( opt ) {
 		connection.on('data', onData );
 		connection.on('open', function () {
 			self.emit('open');
+			sendImmediate( packCommand ( 
+				Protocol.hello
+			) );
 			outputRegulator.allow = serialBufferSize;
 			flushOutput ();
 		});

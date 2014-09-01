@@ -32,7 +32,8 @@ public:
 			analogWrite = 8,
 			digitalWrite = 9,
 			setFlags = 10,
-			reset = 11
+			reset = 11,
+			hello = 12
 		};
 
 		enum PinMode {

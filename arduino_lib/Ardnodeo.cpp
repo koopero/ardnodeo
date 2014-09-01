@@ -7,7 +7,8 @@ Ardnodeo::Timecode::Timecode () {
 }
 
 void Ardnodeo::setup () {
-
+	Serial.begin( 9600 );
+	flags |= Protocol::connected;
 }
 
 bool Ardnodeo::catchEvent( event_t eventCode ) {
@@ -107,6 +108,12 @@ bool Ardnodeo::receiveCommand() {
 	//	Actually, a nested switch, grouped by
 	//	commands that have the similar options.
 	switch ( command ) {
+		case Protocol::hello :
+		{
+			return true;
+		}
+		break;
+
 		case Protocol::setFlags :
 		{
 			uint8_t newFlags = readByte();
@@ -131,6 +138,8 @@ bool Ardnodeo::receiveCommand() {
 			}
 		}
 		break;
+
+
 
 		//	------------
 		//	Pin Commands
@@ -255,8 +264,7 @@ bool Ardnodeo::sendByte( uint8_t byte ) {
 	if ( ~flags & Protocol::connected )
 		return false;
 
-	Serial.write( byte );
-	return true;
+	return Serial.write( byte );
 }
 
 bool Ardnodeo::sendWord ( uint16_t word ) {
