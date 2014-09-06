@@ -5,21 +5,21 @@ var Convert = require('./Convert');
 var Types = {};
 module.exports = Types;
 
-addType( 'bool', 		1 );
-addType( 'int8_t', 		1, [ 'signed char', 'char' ] );
-addType( 'uint8_t', 	1, [ 'unsigned char', 'byte' ] );
-addType( 'int16_t', 	2, [ 'short', 'signed short' ] );
-addType( 'uint16_t', 	2, [ 'unsigned short' ]	);
-addType( 'int32_t', 	4, [ 'long', 'signed long'] );
-addType( 'uint32_t', 	4, [ 'unsigned long' ] );
-addType( 'float', 		4 );
-addType( 'clamp8', 		1 );
-addType( 'clamp10', 	2 );
-addType( 'clamp12', 	2 );
-addType( 'CRGB', 		3 );
+addPrimitive( 'bool', 		1 );
+addPrimitive( 'int8_t', 	1, [ 'signed char', 'char' ] );
+addPrimitive( 'uint8_t', 	1, [ 'unsigned char', 'byte' ] );
+addPrimitive( 'int16_t', 	2, [ 'short', 'signed short' ] );
+addPrimitive( 'uint16_t', 	2, [ 'unsigned short' ]	);
+addPrimitive( 'int32_t', 	4, [ 'long', 'signed long'] );
+addPrimitive( 'uint32_t', 	4, [ 'unsigned long' ] );
+addPrimitive( 'float', 		4 );
+addPrimitive( 'clamp8', 	1 );
+addPrimitive( 'clamp10', 	2 );
+addPrimitive( 'clamp12', 	2 );
+addPrimitive( 'CRGB', 		3 );
 
 
-function addType( name, size, aliases ) {
+function addPrimitive( name, size, aliases ) {
 	var type = {
 		name: name,
 		size: size,
