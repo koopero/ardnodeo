@@ -165,7 +165,18 @@ bool Ardnodeo::receiveCommand() {
 		}
 		break;
 
+		case Protocol::reset :
+		{
+			// Okay, so this doesn't actually reset.
+			// Rather, it ends the Serial connection and
+			// goes into an infinite loop, so hopefully
+			// the server will be able to execute a
+			// reset over serial.
 
+			Serial.end();
+			while (1) {};
+		}
+		break;
 
 		//	------------
 		//	Pin Commands

@@ -17,6 +17,7 @@ function Serial ( opt ) {
 	self.opt = {};
 	self.stayOpen = true;
 	self.open = open;
+	self.reset = reset;
 
 	if ( opt ) {
 		open(opt);
@@ -27,24 +28,64 @@ function Serial ( opt ) {
 	function close ( cb ) {
 		self.stayOpen = false;
 
+		closePort( function () {
+			self.port.removeAllListeners();
+			self.port = null;
+			if ( cb )
+				cb();
+		});
+	}
+
+
+	function reset( cb ) {
+		async.series( [
+			closePort,
+			delay( 50 ),
+			openReset,
+			delay( 50 ),
+			closeReset,
+			delay( 50 )	
+		], function ( err ) {
+			console.log( "RESET SERIAL?" );
+		} );
+
+		var resetPort = new SerialPort( 
+			self.opt.port, 
+			{	
+				baudrate: 1200,
+				rtscts: true
+			},
+			false
+		);
+
+		function openReset( cb ) {
+			console.log( "Opening resetPort")
+			resetPort.open( cb );
+		}
+
+		function closeReset( cb ) {
+			console.log( "Closing resetPort")
+			resetPort.close( cb );
+		}
+
+		function delay ( milliseconds ) {
+			return function ( cb ) {
+				setTimeout( cb, milliseconds );
+			}
+		}
+	}
+
+	function closePort( cb ) {
 		if ( self.port ) {
 			async.series( [ 
 				self.port.drain.bind( self.port ),
 				self.port.flush.bind( self.port ),
 				self.port.close.bind( self.port )
-			], function () {
-				self.port.removeAllListeners();
-				self.port = null;
-				if ( cb )
-					cb();
-			} );
+			], cb );
 		} else if ( cb ) {
 			cb( new Error( "Already closed" ) );
-		}
-		
-		//_port.close();
+		}		
 	}
-
 
 
 	function open( opt ) {
@@ -74,6 +115,8 @@ function Serial ( opt ) {
 		}
 
 	}
+
+
 
 	function delayReconnect() {
 		if ( self.stayOpen )

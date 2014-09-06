@@ -594,9 +594,10 @@ function Ardnodeo ( opt ) {
 
 	commands.reset = reset;
 	function reset () {
-		queueOutput( packOutput( 
+		sendImmediate( packOutput( 
 			packCommand( Protocol.reset )
 		) );
+		_connection.reset();
 	}	 
 
 	self.Protocol = Protocol;
