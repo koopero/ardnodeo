@@ -62,6 +62,13 @@ describe('Variable', function () {
 			assert.deepEqual( { a: 10, b: 20, c: 40 }, variable.readBuffer( buffer ) );
 		});
 
+		it('should read a union', function () {
+			var compiler = new Compiler();
+			var variable = compiler.compileVar( 'union { char a; char b; char c; } foo;', 4 );
+
+			var buffer = new Buffer( [ 0,0,0,0,13 ] );
+			assert.deepEqual( { a: 13, b: 13, c: 13 }, variable.readBuffer( buffer ) );
+		});
 	});
 
 	describe('writeBuffer', function () {
@@ -119,6 +126,6 @@ describe('Variable', function () {
 			assert.equal( buffer[1], 60 );
 			assert.equal( buffer[2], 80 );
 		});
+	});
 
-	})
 });

@@ -1,3 +1,6 @@
+/**
+	Utilities to deal with n-dimensional arrays
+*/
 
 exports.parseDimensionsArguments = function ( variable, args, argsStart, allowCallback ) {
 	var ret = {};

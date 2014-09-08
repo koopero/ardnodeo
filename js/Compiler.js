@@ -90,6 +90,7 @@ function Compiler () {
 	}
 
 	function compileVar( dec, offset ) {
+		dec = parse( dec, Parse.member );
 		offset = parseInt( offset ) || 0;
 		if ( 'string' == typeof dec )
 			dec = Parse.member( dec, self );
@@ -118,8 +119,10 @@ function Compiler () {
 		
 		var size = 0;
 		members = members.map( function ( member ) {
-			var variable = compileVar( member, offset );
-			offset += variable.size;
+			var variable = compileVar( member, offset || 0 );
+			if ( offset !== null )
+				offset += variable.size;
+
 			size = variable.offset + variable.size;
 			return variable;
 		});
