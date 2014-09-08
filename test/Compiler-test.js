@@ -65,6 +65,20 @@ describe('Compiler', function () {
 			assert.isFunction( compiled.toBuffer );
 		});
 
+		it('will flatten anonymous struct', function () {
+			var compiler = new Compiler();
+			var compiled = compiler.compileVar( 'struct { float bar; struct { float baz; float blah; }; } foo;' );
+			assert.equal( compiled.type.members.length, 3 );
+		});
+
+		it('will flatten anonymous union', function () {
+			var compiler = new Compiler();
+			var compiled = compiler.compileVar( 'struct { float bar; union { float baz; float blah; }; } foo;' );
+			assert.equal( compiled.type.members.length, 3 );
+			assert.equal( compiled.type.members[2].offset, 4 );
+		});
+
+
 	});
 
 	describe('compileMembers', function () {

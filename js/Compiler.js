@@ -127,6 +127,8 @@ function Compiler () {
 			return variable;
 		});
 
+		members = flattenMembers( members );
+
 		if ( !isNaN( offset ) )
 			members.size = size;
 
@@ -137,6 +139,29 @@ function Compiler () {
 		}
 
 		return members;
+
+		function flattenMembers( members ) {
+			var ret = [];
+			members.forEach( function ( member ) {
+				if ( member.name ) {
+					ret.push( member );
+				} else {
+					var subMembers = member.type.members;
+					
+					subMembers = subMembers.map( function ( subMember ) {
+						var varOpt = _.clone( subMember );
+						varOpt.offset += member.offset;
+
+						return new Variable( varOpt.name, varOpt );
+					});
+
+
+
+					ret = ret.concat( flattenMembers( subMembers ) );
+				}
+			});
+			return ret;
+		}
 	}
 
 	function compileGroup( dec ) {
