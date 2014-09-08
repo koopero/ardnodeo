@@ -10,7 +10,7 @@ const REGEX = {
 	VAR_LINE: /\s*(.*?);\s*(\/\/\s*(.*?)$)?/mg,
 	COMMENTS_MULTILINE: /\/\*.*?\*\//mg,
 	COMMENTS_LINE: /\/\/.*?$/mg,
-	ENUM_DEC: /(\w+)\s*=\s*(\d+)/g,
+	enums: /(\w+)\s*=\s*((0[bx])?\d+)/gi,
 	groupStart: /^([a-zA-Z_][a-zA-Z0-9_]*)*\s*\{/,
 	whitespace: /^\s+/,
 	memberName: /[a-zA-Z_]+[a-zA-Z0-9]*/,
@@ -249,8 +249,42 @@ Parse.dims = function ( source ) {
 			dims: dims
 		}, source, match.after );
 	}
+}
 
+/**
+	Greedily parse everything that looks like [name]=[number].
+	Used to extract enum declarations such as:
 
+		foo = 0x45,
+		bar = 0b11
+*/
+
+Parse.enums = function ( source ) {
+	var ret = {};
+	source.replace( REGEX.enums, function ( match, name, num ) {
+		ret[name] = parseInt( num );
+	});
+
+	return ret;		
+}
+
+/**
+	Parse a string to an integer in the same fashion as
+	a C compiler, including horrendous octal numbers.
+*/
+Parse.integer = function ( str ) {
+	if ( str[0] == '0' ) {
+		if ( str[1] == 'x' || str[1] == 'X' )
+			return parseInt( str );
+
+		if ( str[1] == 'b' )
+			return parseInt( str.substr( 2 ), 2 );
+
+		// Octal fucking numbers. God help us.
+		return parseInt( str.substr( 1 ), 8 );
+	}
+
+	return parseInt( str );
 }
 
 /**
@@ -335,4 +369,5 @@ function matchTokenLeft( haystack, needle ) {
 	
 	return [ haystack.substr( 0, needle.length ), haystack.substr( k ) ];
 }
+
 

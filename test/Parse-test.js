@@ -119,6 +119,28 @@ describe('Parse', function () {
 		
 	});
 
+
+	describe('integer', function () {
+		it('will parse the same way as C', function () {
+			assert.equal( 42, Parse.integer( '42' ) );
+			assert.equal( 42, Parse.integer( '052' ) );
+			assert.equal( 42, Parse.integer( '0x2a' ) );
+			assert.equal( 42, Parse.integer( '0X2A' ) );
+			assert.equal( 42, Parse.integer( '0b101010' ) );
+		})
+	});
+
+	describe('enums', function () {
+		it('will extract enums for a string', function () {
+			var source = "foo=barr  one=1,two=2 /* A comment just to fuck things up */ forty  = 0x24";
+			assertCompare( Parse.enums( source ), {
+				one: 1,
+				two: 2,
+				forty: 40
+			});
+		});
+	});
+
 });
 
 //
