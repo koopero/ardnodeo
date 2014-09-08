@@ -106,12 +106,12 @@ describe('Parse', function () {
 			//console.log( parsed );
 
 			assertCompare( parsed, {
-				"memberType": {
-					"parseType":"type",
-					"typeName":"uint8_t"
+				"type": {
+					"parseType":"group",
+					"groupType":"struct"
 				},
-				"name":"foo",
-				"parseType":"member",
+				"typeName":"gyro_t",
+				"parseType":"typeDeclaration",
 				'after': 'bar'
 			});
 		});
