@@ -14,9 +14,15 @@ const REGEX = {
 	VAR_DEC: /\s*([a-zA-Z_][a-zA-Z0-9]+)\s*((\[(.*)\])*)$/,
 	COMMENTS_MULTILINE: /\/\*.*?\*\//mg,
 	COMMENTS_LINE: /\/\/.*?$/mg,
-	ENUM_DEC: /(\w+)\s*=\s*(\d+)/g
+	ENUM_DEC: /(\w+)\s*=\s*(\d+)/g,
+	isStruct: /struct\s+([a-zA-Z_][a-zA-Z0-9]+)\s*\{/
 
 }
+
+exports.REGEX = REGEX;
+
+
+
 
 exports.file = function ( file ) {
 	var text = loadFile ( file );

@@ -1,8 +1,10 @@
 const 
 	assert = require('assert'),
+	Compiler = require('../js/Compiler'),
 	Dimensions = require('../js/Dimensions'),
 	Variable = require('../js/Variable' )
 ;
+
 
 describe( 'Dimensions', function () {
 
@@ -11,22 +13,12 @@ describe( 'Dimensions', function () {
 	//
 	//	Fake variables. Offsets don't really matter.
 	//
+	var compiler = new Compiler();
+	var newVar = compiler.compileVar;
 	var variables = {
-		'single': new Variable( 'single', {
-			type: 'float',
-			offset: fakeOffset,
-			dims: []
-		}),
-		'array': new Variable( 'array', {
-			type: 'char',
-			offset: fakeOffset,
-			dims: [ 13 ]
-		}),
-		'matrix': new Variable( 'matrix', {
-			type: 'float',
-			offset: fakeOffset,
-			dims: [ 3, 4 ]
-		})
+		'single': newVar( 'float single;', fakeOffset ),
+		'array': newVar( 'char array[13];', fakeOffset ),
+		'matrix': newVar( 'float matrix[3][4];', fakeOffset )
 	};
 
 	//

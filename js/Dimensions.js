@@ -8,8 +8,12 @@ exports.parseDimensionsArguments = function ( variable, args, argsStart, allowCa
 		lastArg --;
 	}
 
-	if ( Array.isArray( args[argsStart] ) ) {
-		ret.indexes = args[argsStart];
+	var firstArg = args[argsStart];
+
+	if ( firstArg && firstArg.stride && firstArg.dims ) {
+		return firstArg;
+	} else if ( Array.isArray( firstArg ) ) {
+		ret.indexes = firstArg;
 	} else {
 		ret.indexes = [];
 		for ( var i = argsStart; i <= lastArg; i ++ ) {

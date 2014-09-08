@@ -1,6 +1,5 @@
 var onecolor = require('onecolor');
 
-
 exports.Buffer = {
 	bool: function ( buffer, offset ) {
 		return buffer[ offset || 0 ] != 0;
