@@ -7,4 +7,4 @@ struct Vec3_int16 {
 		};
 		int16_t raw[3];
 	};
-}
+};

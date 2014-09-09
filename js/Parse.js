@@ -15,7 +15,7 @@ const REGEX = {
 
 	defines: /^\#define\s*([a-zA-Z_][a-zA-Z0-9_]+)\s*(.*)\s*$/gm,
 
-	includes: /^#include\s+(["<].*?[">])\s*$/,
+	includes: /^#include\s+(["<].*?[">])\s*$/gm,
 	enums: /(\w+)\s*=\s*((0[bx])?\d+)/gi,
 	groupStart: /^([a-zA-Z_][a-zA-Z0-9_]*)*\s*\{/,
 	typeName: /^\s*([a-zA-Z_]+[a-zA-Z0-9_]*)\s*/,
@@ -42,8 +42,6 @@ Parse.typeDeclaration = function ( source, compiler ) {
 	if ( isTypedef ) {
 		parse = isTypedef;
 	}
-
-	console.log( )
 
 	var type =  Parse.type( parse, compiler );
 	ret.type = type;
@@ -321,9 +319,14 @@ Parse.integer = function ( str ) {
 
 Parse.includes = function ( source ) {
 	var ret = [];
-
-	source.replace( REGEX.enums, function ( match, quotedFile ) {
-		console.log( quotedFile );
+	source.replace( REGEX.includes, function ( match, quotedFile ) {
+		var leftQuote = quotedFile.substr( 0, 1 );
+		var rightQuote = quotedFile.substr( -1 );
+		var fileName = quotedFile.substr( 1, quotedFile.length - 2);
+		ret.push( {
+			file: fileName,
+			quoteType: leftQuote
+		})
 	});
 
 	return ret;

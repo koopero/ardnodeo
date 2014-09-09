@@ -134,7 +134,7 @@ describe('Compiler', function () {
 
 			var sensor_t = c.compileType('sensor_t');
 			assert.equal( sensor_t.size, 22 );
-			console.log( 'sensor_t', JSON.stringify( sensor_t, null ,2 ) );
+			//console.log( 'sensor_t', JSON.stringify( sensor_t, null ,2 ) );
 		});
 	})
 

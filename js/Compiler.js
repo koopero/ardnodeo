@@ -1,6 +1,7 @@
 const 
 	_ = require('underscore'),
 	_s = require('underscore.string'),
+	path = require('path'),
 	prettyjson = require('prettyjson'),
 	Parse = require('./Parse'),
 	SourceCache = require('./SourceCache'),
@@ -75,42 +76,98 @@ function Compiler () {
 	function loadSource( file, opt ) {
 		opt = opt || {};
 		_.defaults( opt, {
-			removeComments: false
+			removeComments: false,
+			maxLevels: 8 
 		});
 
-		var source = cache.readFile( file );
+		var loaded = {};
 
-		var parse = source;
+		_loadSource( file, opt );
 
-		//
-		// Remove Comments
-		//
+		function _loadSource( file, opt ) {
+			// Prevent loading single file multiple times
+			if ( loaded[file] )
+				return;
+			else
+				loaded[file] = true;
 
-		if ( opt.removeComments )
-			parse = Parse.removeComments( parse );
+			_.defaults( opt, {
+				removeComments: false
+			});
 
-		//
-		// Get all #define
-		//
-		var defines = Parse.defines( source );
-		_.map( defines, function ( value, key ) {
-			define( key, value );
-		} );
+			var source = cache.readFile( file );
+			var dir = path.dirname( file );
+				
+			var parse = source;
 
-		//
-		// Gather type declaration offsets
-		//
-		var declarationOffsets = Parse.gatherRegexOffsets( parse, Parse.REGEX.gatherTypedefs, Parse.REGEX.gatherStructs );
-		
-		Parse.forEachOffset( parse, declarationOffsets, function ( parse, offset ) {
-			var parsed = Parse.typeDeclaration( parse );
-			//console.log( "dec", parsed, parsed.input );
-			declareType( parsed );
+			//
+			// Remove Comments
+			//
 
-		});
+			if ( opt.removeComments )
+				parse = Parse.removeComments( parse );
+
+			//
+			// Load includes
+			//
+			var includes = Parse.includes( parse );
+			if ( includes.length ) {
+				var includeOpt = _.clone( opt );
+				includeOpt.maxLevels = opt.maxLevels - 1;
+
+
+				includes.forEach( function ( includeFile ) {
+					var filesToTry = possibleIncludeFiles( includeFile, dir );
+					for ( var i in filesToTry ) {
+						var file = filesToTry[i];
+						_loadSource( file, includeOpt ); 
+					}
+				});
+				
+			}
+
+
+			//
+			// Get all #define
+			//
+			var defines = Parse.defines( source );
+			_.map( defines, function ( value, key ) {
+				define( key, value );
+			} );
+
+			//
+			// Gather type declaration offsets
+			//
+			var declarationOffsets = Parse.gatherRegexOffsets( parse, Parse.REGEX.gatherTypedefs, Parse.REGEX.gatherStructs );
+			
+			Parse.forEachOffset( parse, declarationOffsets, function ( parse, offset ) {
+				var parsed = Parse.typeDeclaration( parse );
+				//console.log( "dec", parsed, parsed.input );
+				declareType( parsed );
+			});
+
+			
+		}
 
 
 		//console.log( parse );
+	}
+
+	function possibleIncludeFiles ( include, dir ) {
+		var ret = [];
+
+		var fileName = include.file;
+		var quoteType = include.quoteType;
+
+		// Current directory
+		add( path.resolve( dir, fileName ) );
+		// TODO: Add other directories, most importantly Documents/Arduino/libraries
+
+		return ret;
+
+		function add( tryFile ) {
+			ret.push( tryFile )
+		}
 	}
 
 
