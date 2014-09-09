@@ -48,6 +48,21 @@ describe('Compiler', function () {
 			//compiled.printPretty();
 		});
 
+		it('will compile an array with dimension from define', function () {
+			var compiler = new Compiler();
+
+			compiler.define('ROWS', '0x10');
+			compiler.define('COLUMNS', '0b11');
+			
+			var compiled = compiler.compileVar( 'char array[ROWS][COLUMNS];' );
+
+			assert.instanceOf( compiled, Variable );
+			assert.instanceOf( compiled.type, Type );
+			assert.equal( compiled.size, 48 );
+			assert.equal( compiled.name, 'array' );
+			//compiled.printPretty();
+		});
+
 		it('will compile a struct', function () {
 			var compiler = new Compiler();
 			var compiled = compiler.compileVar( 'struct { float bar; float baz; } foo;' );

@@ -17,7 +17,8 @@ function Compiler () {
 	var 
 		typeNames = [],
 		typeDeclaration = {},
-		typeCompiled = {}
+		typeCompiled = {},
+		defines = {}
 	;
 
 	//
@@ -33,11 +34,12 @@ function Compiler () {
 	//
 	
 	__publicProperty( 'typeNames', 			typeNames );
+
+	__publicMethod  ( 'define',				define );
 	__publicMethod  ( 'compileVar', 		compileVar );
 	__publicMethod  ( 'compileMembers', 	compileMembers );
 	__publicMethod  ( 'compileType', 		compileType );
 	
-
 	__publicMethod  ( 'declareType', 		declareType );
 	__publicMethod  ( 'getTypeDeclaration', getTypeDeclaration );
 
@@ -48,6 +50,20 @@ function Compiler () {
 
 		return dec;
 	}
+
+	//
+	//	Definitions
+	//
+
+	function define( key, value, hide ) {
+		if ( value !== undefined ) {
+			defines[key] = value;
+		}
+
+
+		return defines[key];
+	}
+
 
 	//
 	//	Compilers
@@ -182,12 +198,15 @@ function Compiler () {
 			if ( !isNaN( num ) && num >= 0 )
 				return num;
 
-			num = parseInt( define( dim ) );
+			var defined = define( dim );
+			if ( defined ) {
+				num = Parse.integer( defined );
 
-			if ( !isNaN( num ) && num >= 0 )
-				return num;
+				if ( !isNaN( num ) && num >= 0 )
+					return num;
+			}
 
-			throw new Error( "Invalid dimensions" );
+			throw new Error( "Invalid dimension "+dim );
 		} );
 	}
 
