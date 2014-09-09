@@ -1,7 +1,9 @@
 const 
 	_ = require('underscore'),
+	_s = require('underscore.string'),
 	prettyjson = require('prettyjson'),
 	Parse = require('./Parse'),
+	SourceCache = require('./SourceCache'),
 	Struct = require('./Struct'),
 	Type = require('./Type'),
 	Variable = require('./Variable')
@@ -18,7 +20,8 @@ function Compiler () {
 		typeNames = [],
 		typeDeclaration = {},
 		typeCompiled = {},
-		defines = {}
+		defines = {},
+		cache = new SourceCache()
 	;
 
 	//
@@ -35,6 +38,7 @@ function Compiler () {
 	
 	__publicProperty( 'typeNames', 			typeNames );
 
+	__publicMethod  ( 'loadSource', 		loadSource );
 	__publicMethod  ( 'define',				define );
 	__publicMethod  ( 'compileVar', 		compileVar );
 	__publicMethod  ( 'compileMembers', 	compileMembers );
@@ -64,6 +68,51 @@ function Compiler () {
 		return defines[key];
 	}
 
+	//
+	//	Loading Files
+	//
+
+	function loadSource( file, opt ) {
+		opt = opt || {};
+		_.defaults( opt, {
+			removeComments: false
+		});
+
+		var source = cache.readFile( file );
+
+		var parse = source;
+
+		//
+		// Remove Comments
+		//
+
+		if ( opt.removeComments )
+			parse = Parse.removeComments( parse );
+
+		//
+		// Get all #define
+		//
+		var defines = Parse.defines( source );
+		_.map( defines, function ( value, key ) {
+			define( key, value );
+		} );
+
+		//
+		// Gather type declaration offsets
+		//
+		var declarationOffsets = Parse.gatherRegexOffsets( parse, Parse.REGEX.gatherTypedefs, Parse.REGEX.gatherStructs );
+		
+		Parse.forEachOffset( parse, declarationOffsets, function ( parse, offset ) {
+			var parsed = Parse.typeDeclaration( parse );
+			//console.log( "dec", parsed, parsed.input );
+			declareType( parsed );
+
+		});
+
+
+		//console.log( parse );
+	}
+
 
 	//
 	//	Compilers
@@ -83,8 +132,28 @@ function Compiler () {
 		if ( typeCompiled[typeName] )
 			return typeCompiled[typeName];
 
-		while ( dec && dec.parseType == 'type' ) 
-			dec = getTypeDeclaration( dec.typeName );
+		var resolvedTypeName = typeName;
+		while ( dec ) {
+			//console.log( "Walk type", dec );
+
+			if ( dec.groupType )
+				break;
+
+			if ( dec.type ) {
+				dec = dec.type;
+				break;
+			}
+		
+			if ( dec.typeName ) {
+				resolvedTypeName = dec.typeName;
+				dec = getTypeDeclaration( resolvedTypeName ); 
+				continue;
+			}
+
+			//console.log( "Can't compile type", dec );
+			throw new Error("Can't find final declaration" );
+		};
+			
 
 		if ( !dec )
 			throw new Error( "Type not declared" );
@@ -94,7 +163,7 @@ function Compiler () {
 				var members = compileGroup( dec );
 				var type = new Type();
 				type.size = members.size;
-				type.name = dec.typeName;
+				type.name = typeName;
 				type.isGroup = true;
 				type.members = members;
 				type.fromBuffer = Struct.createUnpacker( members );
@@ -103,6 +172,10 @@ function Compiler () {
 
 			return type;
 		}
+
+		console.log( "Can't compile type", dec );
+
+		return CompileError( "Type format not compiled" );
 	}
 
 	function compileVar( dec, offset ) {
@@ -210,6 +283,13 @@ function Compiler () {
 		} );
 	}
 
+	//
+	//	Error handling
+	//
+
+	function CompileError( ) {
+	}
+
 
 	//
 	//	Type declaration
@@ -249,6 +329,9 @@ function Compiler () {
 		} else {
 			declaration = type;
 		}
+
+		//console.log( "DECLARE", typeName, declaration );
+
 		typeDeclaration[typeName] = declaration;
 
 		return declaration;

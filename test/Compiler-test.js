@@ -1,6 +1,7 @@
 const
 	assert = require('chai').assert,
 	Compiler = require('../js/Compiler'),
+	Test = require('./Test'),
 	Type = require('../js/Type'),
 	Variable = require('../js/Variable')
 ;
@@ -105,7 +106,7 @@ describe('Compiler', function () {
 
 	});
 
-	/*
+
 	describe('compileType', function () {
 		it('will compile a primitive type', function () {
 			var compiler = new Compiler();
@@ -119,10 +120,23 @@ describe('Compiler', function () {
 			var compiler = new Compiler();
 			compiler.declareType( "struct Vector3c8 { char x; char y; char x; };");
 			var compiled = compiler.compileType( 'Vector3c8' );
-
 			assert.isFunction( compiled.toBuffer );
 		});
 	});
-	*/
+
+	describe('loadSource', function () {
+		it('will compile types and defines from sketch.ino', function () {
+			var file = Test.sourcePath( 'sketch.ino' );
+			var c = new Compiler();
+			c.loadSource(  file );
+
+			assert.equal( c.define('LED_PIN'), '13', "Didn't get define" );
+
+			var sensor_t = c.compileType('sensor_t');
+			assert.equal( sensor_t.size, 22 );
+			console.log( 'sensor_t', JSON.stringify( sensor_t, null ,2 ) );
+		});
+	})
+
 });
 

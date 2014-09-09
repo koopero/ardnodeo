@@ -3,8 +3,13 @@ const
 	path = require('path')
 ;
 
-var cachedFiles = {};
 
+
+exports.sourcePath = function ( file ) {
+	return path.resolve( __dirname, 'source', file );
+}
+
+var cachedFiles = {};
 exports.loadSource = function ( file ) {
 	var data = cachedFiles[file];
 

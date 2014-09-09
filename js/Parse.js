@@ -1,14 +1,15 @@
 const
 	_ = require('underscore'),
-	_s = require('underscore.string')
+	_s = require('underscore.string'),
+	Primitives = require('./Primitives')
 ;
-
 
 const REGEX = {
 	SECTION: "\\/\\/\\s*\\#SECTION_NAME([\\s\\S]*)\\/\\/\\s*\\#\\/SECTION_NAME",
 	VAR_LINE: /\s*(.*?);\s*(\/\/\s*(.*?)$)?/mg,
 
-	typeDeclarations: [ /typedef\s+/g, /struct\s+[a-zA-Z_]/g ],
+	gatherTypedefs: /typedef\s+/g,
+	gatherStructs: /struct\s+[a-zA-Z_]/g,
 	commentsLine: /\/\/.*?$/mg,
 	commentsMulti: /\/\*[\s\S]*?\*\//g,
 
@@ -17,6 +18,7 @@ const REGEX = {
 	includes: /^#include\s+(["<].*?[">])\s*$/,
 	enums: /(\w+)\s*=\s*((0[bx])?\d+)/gi,
 	groupStart: /^([a-zA-Z_][a-zA-Z0-9_]*)*\s*\{/,
+	typeName: /^\s*([a-zA-Z_]+[a-zA-Z0-9_]*)\s*/,
 	whitespace: /^\s+/,
 	memberName: /[a-zA-Z_]+[a-zA-Z0-9]*/,
 	arrayDimensions: /^(\[.*\])*/,
@@ -26,6 +28,7 @@ const REGEX = {
 }
 
 var Parse = exports;
+Parse.REGEX = REGEX;
 
 Parse.typeDeclaration = function ( source, compiler ) {
 	var 
@@ -37,17 +40,29 @@ Parse.typeDeclaration = function ( source, compiler ) {
 
 	var isTypedef = startsWith( parse, 'typedef' );
 	if ( isTypedef ) {
-		throw new Error ( "Not supported, yet")
 		parse = isTypedef;
-		var typeParse = Parse.type();
 	}
 
-	var type = Parse.type( parse, compiler );
-	if ( type ) {
-		ret.type = type;
-		ret.typeName = type.typeName;
+	console.log( )
+
+	var type =  Parse.type( parse, compiler );
+	ret.type = type;
+	ret.typeName = type.typeName;
+	parse = type.after;
+	
+	var nameMatch = parseRegex( parse, REGEX.typeName );
+	if ( nameMatch ) {
+		if ( ret.typeName ) {
+			return ParseError( 'typeDeclaration', "Named group inside typedef not supported.", parse, source );
+		}
+		ret.typeName = nameMatch[1];
+		parse = nameMatch.after;
+	} else if ( !ret.typeName ) {
+		return ParseError( 'typeDeclaration', "Type not named", parse, source );
 	}
-	//TODO: Finish!
+
+	var endOfLine = Parse.endOfLine( parse );
+	parse = endOfLine.after;
 
 	return parsedResult( 'typeDeclaration', ret, source, parse, compiler );
 
@@ -56,12 +71,15 @@ Parse.typeDeclaration = function ( source, compiler ) {
 Parse.type = function ( source, compiler ) {
 	compiler = defaultCompiler( compiler );
 
+	var parse = source;
 
+	parse = stripWhitespaceAndComments( parse );
+	
 	//
 	//	Struct
 	//
 
-	var structParse = Parse.group( source, 'struct', compiler );
+	var structParse = Parse.group( parse, 'struct', compiler );
 	if ( structParse ) {
 		return structParse;
 	}
@@ -69,30 +87,39 @@ Parse.type = function ( source, compiler ) {
 	//
 	//	Union
 	//
-	var unionParse = Parse.group( source, 'union', compiler );
+	var unionParse = Parse.group( parse, 'union', compiler );
 	if ( unionParse ) {
 		return unionParse;
 	}
 
 
-	var afterWhitespace = _s.ltrim( source );
-	//
-	//	Already defined type names
-	//
+	parse = stripWhitespaceAndComments( parse );
 
-	for ( var i in compiler.typeNames ) {
-		var typeName = compiler.typeNames[i];
-
-		if ( match = matchTokenLeft( afterWhitespace, typeName ) ) {
+	//
+	//	Test for the names of primitives,
+	//	since they are the only type names
+	//	that can have spaces in them,
+	//	aka: `unsigned char`
+	//
+	for ( var primitiveName in Primitives ) {
+		if ( match = matchTokenLeft( parse, primitiveName ) ) {
 			return parsedResult( 'type', {
-				parseType: 'type',
-				typeName: match[0]
+				typeName: primitiveName
 			}, source, match[1], compiler );
 		}
 	}
 
-	throw new Error( "Type not found ("+source+")" )
+	var nameMatch = parseRegex( parse, REGEX.typeName );
+
+	if ( !nameMatch ) {
+		throw new Error( "Invalid type name ("+source+")" );
+	}
+
+	return parsedResult( 'type', {
+		typeName: nameMatch[1]
+	}, source, nameMatch.after );
 }
+
 
 Parse.member = function ( source, compiler ) {
 	compiler = defaultCompiler( compiler );
@@ -121,8 +148,8 @@ Parse.member = function ( source, compiler ) {
 
 
 	var nameMatch = parseRegex( parse, REGEX.memberName );
-	if ( !match )
-		throw new Error( "Invalid member name")
+	if ( !nameMatch )
+		throw new Error( "Invalid member name ("+parse+")");
 
 	ret.name = nameMatch[0];
 
@@ -201,7 +228,7 @@ Parse.endOfLine = function ( source, silent ) {
 		if ( silent )
 			return;
 		else {
-			throw new Error( "Expected ;");
+			return ParseError( 'endOfLine', "Expected ;", source );
 		}
 
 	ret.comment = _s.trim( match[2] || "" );	
@@ -306,18 +333,25 @@ Parse.includes = function ( source ) {
 Parse.defines = function ( source ) {
 	var ret = {};
 
-	source.replace( REGEX.defines, function ( key, value ) {
+	source.replace( REGEX.defines, function ( match, key, value ) {
 		ret[key] = value;
 	});
 
 	return ret;
 }
 
-Parse.gatherRegexOffsets = function ( source, regex ) {
+Parse.gatherRegexOffsets = function ( source, regexMany ) {
 	var offsets = [];
 
-	source.replace( regex, function ( match, offset ) {
-		offsets.push( offset );
+	for ( var i = 1; i < arguments.length; i ++ ) {
+		var regex = arguments[i];
+		source.replace( regex, function ( match, offset ) {
+			offsets.push( offset );
+		});
+	}
+
+	offsets.sort( function ( a, b ) {
+		return a < b ? -1 : 1;
 	});
 
 	return offsets;
@@ -336,6 +370,15 @@ Parse.removeComments = function ( source ) {
 	return parse;
 }
 
+
+function ParseError ( module, message, source, context ) {
+	var error = new Error( module+": "+message );
+
+	console.log( source );
+	console.log( context );
+
+	throw error;
+}
 
 /**
 	Return a prettier object with the results of a parse.
