@@ -1,5 +1,5 @@
 const 
-	assert = require('assert'),
+	assert = require('chai').assert,
 	util = require('util'),
 	Parse = require('../js/Parse'),
 	Test = require('./Test')
@@ -160,6 +160,18 @@ describe('Parse', function () {
 			deepCompare( results, {
 				'LED_PIN': '13'
 			});
+		});
+
+		it('will intentionally ignore macros', function () {
+			var source = joinLines([
+				'#define LED_PIN 13',
+				'#define MAX ( a, b ) whatever'
+			]);
+
+			var results = Parse.defines( source );
+			assert.equal( results.LED_PIN, '13');
+			assert.isUndefined( results.MAX );
+
 		});
 	});
 

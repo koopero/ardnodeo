@@ -13,8 +13,9 @@ const REGEX = {
 	commentsLine: /\/\/.*?$/mg,
 	commentsMulti: /\/\*[\s\S]*?\*\//g,
 
-	defines: /^\#define\s*([a-zA-Z_][a-zA-Z0-9_]+)\s*(.*)\s*$/gm,
 
+	defines: /^\#define\s*([a-zA-Z_][a-zA-Z0-9_]+)\s*(.*)\s*$/gm,
+	complicatedDefine: /^\s*[\(]/,
 	includes: /^#include\s+(["<].*?[">])\s*$/gm,
 	enums: /(\w+)\s*=\s*((0[bx])?\d+)/gi,
 	groupStart: /^([a-zA-Z_][a-zA-Z0-9_]*)*\s*\{/,
@@ -279,6 +280,10 @@ Parse.dims = function ( source ) {
 			dims: dims
 		}, source, match.after );
 	}
+};
+
+Parse.sections = function ( source ) {
+
 }
 
 /**
@@ -337,7 +342,10 @@ Parse.defines = function ( source ) {
 	var ret = {};
 
 	source.replace( REGEX.defines, function ( match, key, value ) {
-		ret[key] = value;
+		// Intentionally drop more complicated defines
+		// such as macros.
+		if ( !REGEX.complicatedDefine.test( value ) ) 
+			ret[key] = value;
 	});
 
 	return ret;
