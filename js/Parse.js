@@ -5,11 +5,16 @@ const
 
 
 const REGEX = {
-	DEFINE: /\#define\s*([a-zA-Z_][a-zA-Z0-9_]+)\s*(.*)/g,
 	SECTION: "\\/\\/\\s*\\#SECTION_NAME([\\s\\S]*)\\/\\/\\s*\\#\\/SECTION_NAME",
 	VAR_LINE: /\s*(.*?);\s*(\/\/\s*(.*?)$)?/mg,
-	COMMENTS_MULTILINE: /\/\*.*?\*\//mg,
-	COMMENTS_LINE: /\/\/.*?$/mg,
+
+	typeDeclarations: [ /typedef\s+/g, /struct\s+[a-zA-Z_]/g ],
+	commentsLine: /\/\/.*?$/mg,
+	commentsMulti: /\/\*[\s\S]*?\*\//g,
+
+	defines: /^\#define\s*([a-zA-Z_][a-zA-Z0-9_]+)\s*(.*)\s*$/gm,
+
+	includes: /^#include\s+(["<].*?[">])\s*$/,
 	enums: /(\w+)\s*=\s*((0[bx])?\d+)/gi,
 	groupStart: /^([a-zA-Z_][a-zA-Z0-9_]*)*\s*\{/,
 	whitespace: /^\s+/,
@@ -286,6 +291,51 @@ Parse.integer = function ( str ) {
 
 	return parseInt( str );
 }
+
+Parse.includes = function ( source ) {
+	var ret = [];
+
+	source.replace( REGEX.enums, function ( match, quotedFile ) {
+		console.log( quotedFile );
+	});
+
+	return ret;
+
+}
+
+Parse.defines = function ( source ) {
+	var ret = {};
+
+	source.replace( REGEX.defines, function ( key, value ) {
+		ret[key] = value;
+	});
+
+	return ret;
+}
+
+Parse.gatherRegexOffsets = function ( source, regex ) {
+	var offsets = [];
+
+	source.replace( regex, function ( match, offset ) {
+		offsets.push( offset );
+	});
+
+	return offsets;
+};
+
+Parse.forEachOffset = function ( source, offsets, callback ) {
+	return offsets.map( function ( offset ) { 
+		return callback( source.substr( offset ), offset );
+	});
+};
+
+Parse.removeComments = function ( source ) {
+	var parse = source;
+	parse = parse.replace( REGEX.commentsLine, '' );
+	parse = parse.replace( REGEX.commentsMulti, '' );
+	return parse;
+}
+
 
 /**
 	Return a prettier object with the results of a parse.

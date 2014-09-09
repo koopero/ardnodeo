@@ -1,7 +1,8 @@
 const 
 	assert = require('assert'),
 	util = require('util'),
-	Parse = require('../js/Parse')
+	Parse = require('../js/Parse'),
+	Test = require('./Test')
 ;
 describe('Parse', function () {
 
@@ -120,6 +121,16 @@ describe('Parse', function () {
 	});
 
 
+	describe('include', function () {
+		it('will extract include directives', function () {
+			var source = joinLines( [
+				'#include <somefile.h>',
+				'',
+				'#include "someotherfile.h"'
+			]);
+		});
+	});
+
 	describe('integer', function () {
 		it('will parse the same way as C', function () {
 			assert.equal( 42, Parse.integer( '42' ) );
@@ -138,6 +149,56 @@ describe('Parse', function () {
 				two: 2,
 				forty: 40
 			});
+		});
+	});
+
+	describe('defines', function () {
+		it('will load from source', function () {
+			var source = Test.loadSource( 'sketch.ino' );
+
+			var results = Parse.defines( source );
+			deepCompare( results, {
+				'LED_PIN': '13'
+			});
+		});
+	});
+
+
+	describe('gatherRegexOffsets', function () {
+		it('will work', function () {
+			var source = 'aaa1aaaa2aa3';
+			var result = Parse.gatherRegexOffsets( source, /\d/g );
+			assert.deepEqual( result, [ 3, 8, 11 ] );
+		});
+	});
+
+	describe('forEachOffset', function () {
+		it('will work', function () {
+			var source = '0123456789ABCDEF';
+
+			var result = Parse.forEachOffset( source, [ 1, 3, 7, 13 ], function ( str, offset ) {
+				assert.equal( str.length, source.length - offset );
+				assert.equal( parseInt( str[0], 16 ), offset );
+				return str[0]
+			});
+
+			assert.deepEqual( [ '1', '3', '7', 'D' ], result );
+		});
+	});
+
+	describe('removeComments', function () {
+		it('will remove end of line comments', function () {
+			var source = 'foo;//comment \nbar';
+			var result = Parse.removeComments( source );
+			assert.equal( result, 'foo;\nbar' );
+		});
+	});
+
+	describe('removeComments', function () {
+		it('will remove /* style */ comments', function () {
+			var source = 'foo/*comment*/;\n/*\n\n\n*/bar';
+			var result = Parse.removeComments( source );
+			assert.equal( result, 'foo;\nbar' );
 		});
 	});
 
