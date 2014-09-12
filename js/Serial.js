@@ -2,7 +2,8 @@ const
 	_ = require('underscore'),
 	async = require('async'),
 	util = require('util'),
-	SerialPort = require("serialport").SerialPort;
+	SerialPort = require("serialport").SerialPort
+;
 
 util.inherits( Serial, require('events').EventEmitter );
 
