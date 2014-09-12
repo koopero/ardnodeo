@@ -1,4 +1,5 @@
 #include "Ardnodeo.h"
+#include ""
 #include <avr/wdt.h>
 
 Ardnodeo::Timecode::Timecode () {
@@ -68,7 +69,7 @@ bool Ardnodeo::loop( ms_t minDelay, ms_t maxDelay ) {
 	return true;
 }
 
-bool Ardnodeo::flush () {
+bool Ardnodeo::endPacket () {
 	Serial.flush();
 	return true;
 }
@@ -212,10 +213,11 @@ bool Ardnodeo::receiveCommand() {
 				case Protocol::analogRead :
 				{
 					return 
-						sendCommand( Protocol::analogRead )
+						beginPacket()
+						&& sendCommand( Protocol::analogRead )
 						&& sendByte( pinId )
 						&& sendWord( analogRead( pinId) )
-						&& flush ()
+						&& endPacket ()
 					;
 				}
 
@@ -232,10 +234,11 @@ bool Ardnodeo::receiveCommand() {
 				case Protocol::digitalRead :
 				{
 					return 
-						sendCommand( Protocol::analogRead )
+						beginPacket()
+						&& sendCommand( Protocol::analogRead )
 						&& sendByte( pinId )
 						&& sendByte( digitalRead( pinId ) )
-						&& flush ()
+						&& endPacket ()
 					;
 				}
 			}
@@ -259,10 +262,11 @@ bool Ardnodeo::receiveCommand() {
 			switch ( command ) {
 				case Protocol::peek :
 				{
-					return 
-						sendCommand( Protocol::peek )
+					return
+						beginPacket()
+						&& sendCommand( Protocol::peek )
 						&& sendMemory( memory, size )
-						&& flush ();
+						&& endPacket ();
 				}
 				case Protocol::poke : 
 				{
@@ -271,6 +275,29 @@ bool Ardnodeo::receiveCommand() {
 			}
 		}
 		break;
+
+		//	---------------
+		//	EEProm Commands
+		//	---------------
+		case Protocol::eepromRead:
+		case Protocol::eepromWrite:
+		{
+			uint8_t size = arg0 + 1;
+			uint16_t offset = readUnsignedShort();
+			
+			switch ( command ) {
+				case Protocol::eepromRead:
+					return
+						beginPacket()
+						&& sendCommand( Protocol::eepromRead )
+						&& sendEEProm( offset, size )
+						&& endPacket()
+				break;
+
+				case Protocol::
+			}
+		}
+		break; 		
 	}
 
 	return false;
@@ -288,10 +315,11 @@ bool Ardnodeo::sendCommand( uint8_t cmd, uint8_t arg ) {
 bool Ardnodeo::pokeMemory( void * loc, size_t size, bool force ) {
 	int16_t offset =  (int) loc - (int) data;
 	return 
-		sendCommand( Protocol::poke, size - 1 )
+		beginPacket()
+		&& sendCommand( Protocol::poke, size - 1 )
 		&& sendWord( offset )
 		&& sendMemory( loc, size )
-		&& flush ()
+		&& endPacket ()
 	;
 }
 
@@ -315,6 +343,15 @@ bool Ardnodeo::sendMemory( void * buf, size_t length ) {
 	}
 	return !length;
 }
+
+bool Ardnodeo::sendEEProm( uint16_t offset, size_t length ) {
+	while ( length && sendByte( EEProm.read( offset ) ) ) {
+		offset ++;
+		length --;
+	}
+	return !length;
+}
+
 
 bool Ardnodeo::readMemory( void * buf, size_t length ) {
 	size_t read = Serial.readBytes( (char * )buf, length );
