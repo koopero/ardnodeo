@@ -1,3 +1,5 @@
+throw new Error("Deprecated");
+
 const 
 	fs = require('fs'),
 	path = require('path'),
@@ -32,67 +34,4 @@ exports.file = function ( file ) {
 exports.loadFile = loadFile;
 function loadFile ( file ) {
 	return fs.readFileSync( file, { encoding: 'utf8' } );
-}
-
-exports.isolateSection = isolateSection;
-function isolateSection ( source, section ) {
-	var regexSrc = REGEX.SECTION;
-
-	// Needs to be done twice!
-	regexSrc = regexSrc.replace( "SECTION_NAME", section );
-	regexSrc = regexSrc.replace( "SECTION_NAME", section );
-	
-	var regex = new RegExp( regexSrc, 'g' );
-	var match = regex.exec( source );
-
-	//console.log( "GOT", section, regexSrc, regex, match );
-
-	return match ? match[1] : '';
-}
-
-
-function parseSource ( source ) {
-	var parsed = {
-		define: {}
-	};
-
-	var match;
-	while ( match = REGEX.DEFINE.exec( source ) ) {
-		var key = match[1];
-		var value = match[2];
-		var numVal = parseFloat( value );
-		if ( !isNaN( numVal ) )
-			value = numVal;
-
-		parsed.define[key] = value;
-	}
-
-
-	var varsDeclaration = isolateSection( source, "ARDNODEO_VARS" );
-
-	if ( varsDeclaration ) {
-		parsed.vars = parseVarsDeclaration( varsDeclaration, parsed );
-	}
-
-
-	return parsed;
-}
-
-
-
-function removeComments ( source ) {
-	source = source.replace( REGEX.COMMENTS_MULTILINE, '' );
-	//source = source.replace( REGEX.COMMENTS_LINE, '' );
-	
-	return source;	
-}
-
-
-function ParseError ( error, subject ) {
-	return new Error ( error + " "+subject );
-}
-
-function beginsWith ( haystack, needle ) {
-	if ( haystack.substr( 0, needle.length ) == needle )
-		return haystack.substr( needle.length );
 }
