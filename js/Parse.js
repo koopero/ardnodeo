@@ -5,7 +5,7 @@ const
 ;
 
 const REGEX = {
-	SECTION: "\\/\\/\\s*\\#SECTION_NAME([\\s\\S]*)\\/\\/\\s*\\#\\/SECTION_NAME",
+	sectionNamed: "\\/\\/\\s*\\#SECTION_NAME([\\s\\S]*)\\/\\/\\s*\\#\\/SECTION_NAME", // Regex source, not RegExp
 	VAR_LINE: /\s*(.*?);\s*(\/\/\s*(.*?)$)?/mg,
 
 	gatherTypedefs: /typedef\s+/g,
@@ -282,8 +282,19 @@ Parse.dims = function ( source ) {
 	}
 };
 
-Parse.sections = function ( source ) {
+Parse.section = function ( source, section ) {
+	var regexSrc = REGEX.sectionNamed;
 
+	// Needs to be done twice!
+	regexSrc = regexSrc.replace( "SECTION_NAME", section );
+	regexSrc = regexSrc.replace( "SECTION_NAME", section );
+	
+	var regex = new RegExp( regexSrc, 'g' );
+	var match = regex.exec( source );
+
+	//console.log( "GOT", section, regexSrc, regex, match );
+
+	return match ? match[1] : '';
 }
 
 /**
