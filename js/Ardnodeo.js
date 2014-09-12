@@ -1,14 +1,16 @@
 const
+	_ = require('underscore'),
+	async = require('async'),
+	util = require('util'),
+	Compiler = require('./Compiler'),
 	Convert = require('./Convert'),
 	Dimensions = require('./Dimensions'),
 	Protocol = require('./Protocol'),
 	Regulator = require('./Regulator'),
 	Serial = require('./Serial'),
 	Timecode = require('./Timecode'),
-	Variable = require('./Variable'),
-	_ = require('underscore'),
-	async = require('async'),
-	util = require('util');
+	Variable = require('./Variable')
+;
 
 util.inherits( Ardnodeo, require('events').EventEmitter );
 
@@ -19,7 +21,7 @@ var newLine = '\r\n';
 function Ardnodeo ( opt ) {
 	var self = this;
 
-	// Protected variables
+	// Private variables
 	var 
 		_connection,
 		_serialInLine,
@@ -29,7 +31,8 @@ function Ardnodeo ( opt ) {
 		_variables = Object.create( null ),
 		serialBufferSize = 32,
 		outputRegulator = new Regulator( serialBufferSize ),
-		timecodeReader = new (Timecode.Reader) ()
+		timecodeReader = new (Timecode.Reader) (),
+		compiler = new Compiler()
 	;
 
 	opt = opt || {};
@@ -85,6 +88,8 @@ function Ardnodeo ( opt ) {
 
 	
 	function sourceFile ( file ) {
+		throw new Error("Needs to be rethought");
+		/*
 		var Source = require('./Source');
 		var parsed = Source.file( file );
 
@@ -93,7 +98,7 @@ function Ardnodeo ( opt ) {
 		_.map( parsed.vars, function ( v, name ) {
 			varConfig( name, v );
 		});
-
+		*/
 
 	}
 
@@ -527,7 +532,7 @@ function Ardnodeo ( opt ) {
 		}
 	}
 
-
+	/*
 	commands.varWrite = varWrite;
 	function varWrite ( varName, values, indexes, cb ) {
 		var variable = getVar( varName );
@@ -590,6 +595,7 @@ function Ardnodeo ( opt ) {
 
 		return variable;
 	}
+	*/
 
 
 	commands.reset = reset;
