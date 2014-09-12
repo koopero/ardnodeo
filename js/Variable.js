@@ -54,7 +54,7 @@ function Variable ( name, opt ) {
 	_const( 'size', self.type.size * self.length );
 	_method( 'indexAtOffset', indexAtOffset );
 	_method( 'readBuffer', readBuffer );
-	_method( 'writeBuffer', writeBuffer );
+	_method( 'write', write );
 	_method( 'toBuffer', toBuffer );
 	_method( 'printPretty', printPretty );
 
@@ -79,26 +79,37 @@ function Variable ( name, opt ) {
 		}, dim );
 	}
 
-	function writeBuffer( buffer, values, indexes ) {
+	function write( target, values, indexes ) {
+		if ( Buffer.isBuffer( target ) ) {
+			var buffer = target;
+			target = function ( offset, valueBuffer ) {
+				valueBuffer.copy( buffer, offset );
+			}
+		} else if ( 'function' != typeof target ) {
+			throw new TypeError( "target must be Buffer or function" );
+		}
+
 		var dim = Dimensions.parseDimensionsArguments( self, arguments, 2, false );
-
 		var sparse = self.type.isGroup;
-
 		if ( sparse ) {
 			return Dimensions.walkDimensions( function ( offset, value ) {
-				self.type.writeBuffer( buffer, value, offset );
+				self.type.write( target, value, offset );
 			}, dim, values );
 		} else {
 			if ( !Array.isArray( values ) ) {
+
+				// If values isn't an Array, we can do the conversion from
+				// value to buffer once, instead of for every index.
+				
 				var valueBuffer = self.type.toBuffer( values );
 				return Dimensions.walkDimensions( function ( offset ) {
-					valueBuffer .copy( buffer, offset );
+					target( offset, valueBuffer );
 				}, dim );
 			} else {
-				var value = self.type.toBuffer( values );
+
 				return Dimensions.walkDimensions( function ( offset, value ) {
 					var valueBuffer = self.type.toBuffer( value );
-					valueBuffer.copy( buffer, offset );
+					target( offset, valueBuffer );
 				}, dim, values );
 			}
 		}
@@ -106,9 +117,9 @@ function Variable ( name, opt ) {
 
 	function toBuffer( values, index ) {
 		var buffer = new Buffer( self.size );
-
+		buffer.fill( 0 );
 		var dim = Dimensions.parseDimensionsArguments( self, arguments, 1, false );
-		writeBuffer( buffer, values, dim );
+		write( buffer, values, dim );
 		return buffer;
 	}
 

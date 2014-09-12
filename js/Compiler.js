@@ -225,7 +225,7 @@ function Compiler () {
 				type.members = members;
 				type.fromBuffer = Struct.createUnpacker( members );
 				type.toBuffer = Struct.createPacker( members );
-				type.writeBuffer = Struct.createWriter( members );
+				type.write = Struct.createWriter( members );
 
 			return type;
 		}

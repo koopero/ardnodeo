@@ -71,15 +71,15 @@ describe('Variable', function () {
 		});
 	});
 
-	describe('writeBuffer', function () {
-		it('should write a struct', function () {
+	describe('write', function () {
+		it('should write a struct to a buffer', function () {
 			var compiler = new Compiler();
 			var variable = compiler.compileVar( 'struct { char a; char b; char c; } foo;' );
 
 			var buffer = new Buffer( 3 );
 			buffer.fill( 0 );
 
-			variable.writeBuffer( buffer, { a: 15, b: 20, c: 45 } );
+			variable.write( buffer, { a: 15, b: 20, c: 45 } );
 			assert.equal( buffer[0], 15 );
 			assert.equal( buffer[1], 20 );
 			assert.equal( buffer[2], 45 );
@@ -92,12 +92,12 @@ describe('Variable', function () {
 			var buffer = new Buffer( 5 );
 			buffer.fill( 0 );
 
-			variable.writeBuffer( buffer, 5, 2 );
+			variable.write( buffer, 5, 2 );
 			assert.equal( buffer[0], 0 );
 			assert.equal( buffer[1], 0 );
 			assert.equal( buffer[2], 5 );
 
-			variable.writeBuffer( buffer, 6, [1] );
+			variable.write( buffer, 6, [1] );
 			assert.equal( buffer[1], 6 );
 		});
 
@@ -108,20 +108,20 @@ describe('Variable', function () {
 			var buffer = new Buffer( 5 );
 			buffer.fill( 0 );
 
-			variable.writeBuffer( buffer, 25 );
+			variable.write( buffer, 25 );
 			assert.equal( buffer[0], 25 );
 			assert.equal( buffer[1], 25 );
 			assert.equal( buffer[2], 25 );
 		});
 
-		it('should set a structure sparsely', function () {
+		it('should write a structure to a buffer sparsely', function () {
 			var compiler = new Compiler();
 			var variable = compiler.compileVar( 'struct { char a; char b; char c; } foo;' );
 
 			var buffer = new Buffer( 3 );
 			buffer.fill( 60 );
 
-			variable.writeBuffer( buffer, { c: 80 } );
+			variable.write( buffer, { c: 80 } );
 			assert.equal( buffer[0], 60 );
 			assert.equal( buffer[1], 60 );
 			assert.equal( buffer[2], 80 );
