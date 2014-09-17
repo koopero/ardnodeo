@@ -24,14 +24,21 @@ describe( 'Dimensions', function () {
 	//
 	//	Fake versions of varRead, varReadLocal and varWrite
 	//
-	var read = function ( varName, indexes, cb ) {
-		return Dimensions.parseDimensionsArguments( variables[varName], arguments, 1, true );
+	var getVar = function ( variable ) {
+		if ( 'string' == typeof variable )
+			return variables[variable];
+
+		return variable;
+	}
+
+	var read = function ( variable, indexes, cb ) {
+		return Dimensions.parseDimensionsArguments( getVar(variable), arguments, 1, true );
 	};
-	var readLocal = function ( varName, indexes ) {
-		return Dimensions.parseDimensionsArguments( variables[varName], arguments, 1, false );
+	var readLocal = function ( variable, indexes ) {
+		return Dimensions.parseDimensionsArguments( getVar(variable), arguments, 1, false );
 	};
-	var write = function ( varName, value, indexes, cb ) {
-		return Dimensions.parseDimensionsArguments( variables[varName], arguments, 2, true );
+	var write = function ( variable, value, indexes, cb ) {
+		return Dimensions.parseDimensionsArguments( getVar(variable), arguments, 2, true );
 	};
 
 	describe( 'parseDimensionsArguments', function () {
@@ -189,6 +196,22 @@ describe( 'Dimensions', function () {
 			}, parse, setValue );
 
 			assert.equal( calls, setValue.length );	
+		});
+
+		it('should walk an array with non-default stride', function () {
+			var compiler = new Compiler();
+			var varOpt = compiler.compileVarOpt( 'float funnyArray[3];' );
+			varOpt.stride = [13];
+			varOpt.offset = 2;
+			var variable = new Variable( varOpt );
+
+			var parse = read( variable );
+
+			var result = Dimensions.walkDimensions( function ( offset ) {
+				return offset;
+			}, parse );
+
+			assert.deepEqual( result, [2,15,28])
 		});
 
 	});

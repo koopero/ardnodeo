@@ -41,6 +41,7 @@ function Compiler () {
 
 	__publicMethod  ( 'loadSource', 		loadSource );
 	__publicMethod  ( 'define',				define );
+	__publicMethod  ( 'compileVarOpt', 		compileVarOpt );
 	__publicMethod  ( 'compileVar', 		compileVar );
 	__publicMethod  ( 'compileMembers', 	compileMembers );
 	__publicMethod  ( 'compileType', 		compileType );
@@ -235,7 +236,7 @@ function Compiler () {
 		return CompileError( "Type format not compiled" );
 	}
 
-	function compileVar( dec, offset ) {
+	function compileVarOpt( dec, offset ) {
 		dec = parse( dec, Parse.member );
 		offset = parseInt( offset ) || 0;
 		if ( 'string' == typeof dec )
@@ -254,8 +255,14 @@ function Compiler () {
 		varOpt.dims = compileDims( dec.dims )
 		varOpt.comment = dec.comment;
 		
-		return new Variable( varOpt.name, varOpt );
+		return varOpt;
 	}
+
+	function compileVar( dec, offset ) {
+		var varOpt = compileVarOpt( dec, offset );
+		return new Variable( varOpt );
+	}
+
 
 	function compileMembers( members, offset ) {
 		if ( offset === undefined )
@@ -298,7 +305,7 @@ function Compiler () {
 						var varOpt = _.clone( subMember );
 						varOpt.offset += member.offset;
 
-						return new Variable( varOpt.name, varOpt );
+						return new Variable( varOpt );
 					});
 
 

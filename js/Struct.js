@@ -26,11 +26,23 @@ exports.createPacker = function ( members ) {
 }
 
 exports.createWriter = function ( members ) {
-	return function ( buffer, value, offset ) {
+	return function ( target, value, offset ) {
 		if ( !value )
 			return value;
 
-		buffer = buffer.slice( offset );
+		var realTarget;
+
+		if ( !offset ) {
+			realTarget = target;
+		} else if ( Buffer.isBuffer( target ) ) {
+			realTarget = target.slice( offset );;
+		} else if ( 'function' == typeof target ) {
+			realTarget = function ( targetOffset, value ) {
+				target( offset + targetOffset, value );
+			}
+		} else {
+			throw new Error("target must be Buffer or function(  ");
+		}
 
 		members.forEach( function ( member ) {
 			var key = member.name;
@@ -38,10 +50,9 @@ exports.createWriter = function ( members ) {
 			if ( v === undefined )
 				return;
 
-			member.writeBuffer( buffer, v );
+			member.write( realTarget, v );
 		} )
 
-		return buffer;		
 	}
 }
 

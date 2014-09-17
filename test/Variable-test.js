@@ -1,12 +1,25 @@
 const 
-	assert = require('assert')
+	assert = require('chai').assert,
+	Compiler = require('../js/Compiler'),
+	Test = require('./Test'),
+	Variable = require('../js/Variable'),
+	VariableList = require('../js/VariableList')
 ;
 
-const
-	Compiler = require('../js/Compiler'),
-	Variable = require('../js/Variable')
-;
 describe('Variable', function () {
+	describe('constructor', function () {
+		it('will produce a list of strides per dimension for an array', function () {
+			var compiler = new Compiler();
+			var array = compiler.compileVar('float matrix[4][3];');
+
+			assert.isArray( array.stride );
+			assert.equal( array.stride[1], 4 );
+			assert.equal( array.stride[0], 12 );
+		});
+
+
+	});
+
 	describe('indexAtOffset', function () {
 		it('should work with a single variable', function () {
 			var compiler = new Compiler();
@@ -85,6 +98,19 @@ describe('Variable', function () {
 			assert.equal( buffer[2], 45 );
 		});
 
+		it('should write a struct to a callback', function () {
+			var compiler = new Compiler();
+			var variable = compiler.compileVar( 'struct { char a; char b; char c; } foo;' );
+
+			var callback = function ( buffer, offset ) {
+				assert( Buffer.isBuffer( buffer ) );
+				assert.equal( buffer[0], offset * 16 );
+			};
+
+			variable.write( callback, { a: 0, b: 16, c: 32 } );
+		});
+
+
 		it('should write an array index', function () {
 			var compiler = new Compiler();
 			var variable = compiler.compileVar( 'char foo[5];' );
@@ -128,4 +154,35 @@ describe('Variable', function () {
 		});
 	});
 
+	describe('#flatten', function () {
+		it('should flatten', function () {
+			var file = Test.sourcePath( 'types.h' );
+			var c = new Compiler();
+			c.loadSource(  file );
+
+			var variable = c.compileVar( 'sensorReading reading[5];')
+
+			var members = variable.flatten();
+
+			assert.instanceOf( members, VariableList );
+
+			members.printPretty();
+		});
+	});
+
 });
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
