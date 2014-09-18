@@ -68,14 +68,12 @@ public:
 	void setup();
 	
 	bool loop( ms_t minDelay = 0, ms_t maxDelay = 0 );
-
 	bool isConnected();
 	
-	
-
 	bool catchEvent( uint8_t eventCode );
 	bool sendEvent( event_t event );
 
+	
 
 	bool beginPacket ();
 	bool endPacket();
