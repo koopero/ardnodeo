@@ -194,23 +194,25 @@ function Variable ( opt ) {
 
 	function indexAtOffset( offset ) {
 		if ( offset < self.offset )
-			return;
+			return undefined;
 
-		if ( offset >= self.offset + self.size )
-			return;
+		if ( !numDims )
+			if ( offset < self.offset + self.type.size )
+				return [];
+			else
+				return undefined;
 
 		offset -= self.offset;
 
 		var ret = [];
-		var stride = self.size;
 
-		for ( var i = 0; i < self.dims.length; i ++ ) {
-			var dim = self.dims[i];
-			stride /= dim;
+		for ( var i = 0; i < dims.length; i ++ ) {
+			var index = Math.floor( offset / stride[i] );
+			if ( index >= dims[i] || index < 0 )
+				return;
 
-			var index = Math.floor( offset / stride );
 			ret[i] = index;
-			offset -= index * stride;
+			offset -= index * stride[i];
 		}
 		return ret;
 	}
@@ -294,7 +296,7 @@ function Variable ( opt ) {
 			memberOpt.dimsPrefix = selfOpt.dims;
 			memberOpt.stridePrefix = selfOpt.stride;
 
-			console.log( "memberOpt", memberOpt );
+			//console.log( "memberOpt", memberOpt );
 
 			var membersRet = _.map( self.type.members, function ( member ) {
 				var flattenedMember = member.flatten( memberOpt );

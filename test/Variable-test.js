@@ -44,6 +44,22 @@ describe('Variable', function () {
 			assert.deepEqual( array.indexAtOffset( 4 ), [ 1 ] );
 			assert.deepEqual( array.indexAtOffset( 10 ), [ 4 ] );
 			assert.deepEqual( array.indexAtOffset( 12 ), undefined );
+		});
+
+		it('should work with non-standard strides', function () {
+			var compiler = new Compiler();
+			var varOpt = compiler.compileVarOpt( 'clamp12 array[3][2];' );
+			varOpt.stride = [20];
+			varOpt.offset = 2;
+			var array = new Variable( varOpt );
+
+			assert.deepEqual( array.indexAtOffset( 0 ), undefined );
+			assert.deepEqual( array.indexAtOffset( 2 ), [ 0, 0 ] );
+			assert.deepEqual( array.indexAtOffset( 3 ), [ 0, 0 ] );
+			assert.deepEqual( array.indexAtOffset( 4 ), [ 0, 1 ] );
+
+			assert.deepEqual( array.indexAtOffset( 22 ), [ 1, 0 ] );
+			
 		})
 	});
 
