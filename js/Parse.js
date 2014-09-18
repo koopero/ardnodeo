@@ -13,6 +13,8 @@ const REGEX = {
 	commentsLine: /\/\/.*?$/mg,
 	commentsMulti: /\/\*[\s\S]*?\*\//g,
 
+	commentLine: /^\s*\/\/.*?$/m,
+	commentMulti: /^\s*\/\*[\s\S]*?\*\//,
 
 	defines: /^\#define\s*([a-zA-Z_][a-zA-Z0-9_]+)\s*(.*)\s*$/gm,
 	complicatedDefine: /^\s*[\(]/,
@@ -435,11 +437,39 @@ function defaultCompiler( compiler ) {
 	return new Compiler( compiler );
 }
 
-function stripWhitespaceAndComments( source ) {
-	
-	// TODO: Do comments
+Parse.stripWhitespaceAndComments = stripWhitespaceAndComments;
 
-	return _s.ltrim( source );
+function stripWhitespaceAndComments( source ) {
+	var parse = source;
+	var match;
+
+	while ( true ) {
+		var lineCommentMatch = REGEX.commentLine.exec( parse )
+		
+		if ( lineCommentMatch && lineCommentMatch.index == 0 ) {
+			//console.log( "lineCommentMatch", lineCommentMatch );
+			parse = parse.substr( lineCommentMatch[0].length );
+			continue;
+		}
+
+		var whitespaceMatch = REGEX.whitespace.exec( parse );
+		if ( whitespaceMatch ) {
+			parse = parse.substr( whitespaceMatch[0].length );
+			continue;
+		}
+
+		match = REGEX.commentMulti.exec( parse );
+		if ( match ) {
+			parse = parse.substr( match[0].length );
+			continue
+		}
+
+
+		break;
+	}
+
+
+	return parse;
 
 }
 

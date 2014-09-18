@@ -204,9 +204,7 @@ describe('Parse', function () {
 			var result = Parse.removeComments( source );
 			assert.equal( result, 'foo;\nbar' );
 		});
-	});
 
-	describe('removeComments', function () {
 		it('will remove /* style */ comments', function () {
 			var source = 'foo/*comment*/;\n/*\n\n\n*/bar';
 			var result = Parse.removeComments( source );
@@ -214,6 +212,36 @@ describe('Parse', function () {
 		});
 	});
 
+	describe('stripWhitespaceAndComments', function () {
+		it('will strip whitespace', function () {
+			var source = '   foo ';
+			var result = Parse.stripWhitespaceAndComments( source );
+			assert.equal( result, 'foo ' );
+		})
+
+		it('will strip leading single line comments', function () {
+			var source = joinLines([
+				'// comment',
+				'// another comment',
+				'somethingReal',
+				'// leave this comment'
+			]);
+
+			var result = Parse.stripWhitespaceAndComments( source );
+			assert.equal( result, 'somethingReal\n// leave this comment');
+		});
+
+		it('will strip leading multiline comments', function () {
+			var source = joinLines([
+				'/* comment */',
+				'/*another comment*/ somethingReal',
+				'/*leave this comment*/'
+			]);
+
+			var result = Parse.stripWhitespaceAndComments( source );
+			assert.equal( result, 'somethingReal\n/*leave this comment*/');
+		});
+	});
 });
 
 //
