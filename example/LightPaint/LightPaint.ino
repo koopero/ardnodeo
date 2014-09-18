@@ -19,6 +19,7 @@
 
 
 struct data_t {
+  //#ARDNODEO_VARS
   int16_t   snowFreq; // Add random snow locally
   bool      convolutionActive;  // Whether to run convolution
   bool      normalizeKernel; // Whether to automatically set kernelDiv
@@ -27,6 +28,7 @@ struct data_t {
   uint16_t  kernelDiv[CHANNELS];
   CRGB      edgeColour;
   CRGB      ledBuffer[STRIP_LENGTH];
+  //#/ARDNODEO_VARS
 } data;
 
 // Useful little clamp function
@@ -158,7 +160,7 @@ void loop() {
   // Set onboard LED to whether ardnodeo is connected
   digitalWrite( ACTIVITY_PIN, node.flags & 2 ? HIGH : LOW );
 
-  node.loop(1000/60);
+  node.loop();
 
   if ( data.snowFreq && !( frame % data.snowFreq ) ) {
     uint16_t index = random(STRIP_LENGTH);

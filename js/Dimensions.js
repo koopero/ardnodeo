@@ -1,3 +1,6 @@
+/**
+	Utilities to deal with n-dimensional arrays
+*/
 
 exports.parseDimensionsArguments = function ( variable, args, argsStart, allowCallback ) {
 	var ret = {};
@@ -8,8 +11,12 @@ exports.parseDimensionsArguments = function ( variable, args, argsStart, allowCa
 		lastArg --;
 	}
 
-	if ( Array.isArray( args[argsStart] ) ) {
-		ret.indexes = args[argsStart];
+	var firstArg = args[argsStart];
+
+	if ( firstArg && firstArg.stride && firstArg.dims ) {
+		return firstArg;
+	} else if ( Array.isArray( firstArg ) ) {
+		ret.indexes = firstArg;
 	} else {
 		ret.indexes = [];
 		for ( var i = argsStart; i <= lastArg; i ++ ) {
@@ -24,6 +31,7 @@ exports.parseDimensionsArguments = function ( variable, args, argsStart, allowCa
 
 	ret.variable = variable;
 	ret.dims = variable.dims;
+	ret.stride = variable.stride;
 
 	if ( ret.indexes.length > ret.dims.length )
 		throw new Error( 'too many dimensions' );
@@ -32,10 +40,6 @@ exports.parseDimensionsArguments = function ( variable, args, argsStart, allowCa
 		ret.indexes[i] = undefined;
 
 	ret.size = variable.type.size;
-	ret.stride = ret.size;
-
-	for ( var i = 0; i < ret.dims.length; i ++ )
-		ret.stride *= ret.dims[i];
 
 	return ret;
 }
@@ -45,9 +49,9 @@ exports.walkDimensions = function ( callback, parsed, value ) {
 	var dims = parsed.dims,
 		indexes = parsed.indexes;
 
-	return walk( 0, parsed.variable.offset, parsed.stride, value );
+	return walk( 0, parsed.variable.offset, value );
 
-	function walk ( d, offset, stride, value ) {
+	function walk ( d, offset, value ) {
 		var isLeaf = d == dims.length;
 		if ( isLeaf ) {
 			if ( Array.isArray( value ) )
@@ -56,7 +60,7 @@ exports.walkDimensions = function ( callback, parsed, value ) {
 			return callback( offset, value );
 		} else {
 			var dim = dims[d];
-			stride /= dim;
+			var stride = parsed.stride[d];
 			var index = parseInt( indexes[d] );
 			if ( isNaN( index ) ) {
 				var ret = []
@@ -64,18 +68,18 @@ exports.walkDimensions = function ( callback, parsed, value ) {
 				if ( Array.isArray( value ) ) {
 					for ( index = 0; index < dim && index < value.length; index ++ ) {
 						var v = Array.isArray( value ) ? value[index] : value;
-						ret[index] = walk( d + 1, offset + stride * index, stride, value[index] );
+						ret[index] = walk( d + 1, offset + stride * index, value[index] );
 					}	
 				} else {
 					for ( index = 0; index < dim; index ++ ) {
 						var v = Array.isArray( value ) ? value[index] : value;
-						ret[index] = walk( d + 1, offset + stride * index, stride, value );
+						ret[index] = walk( d + 1, offset + stride * index, value );
 					}	
 				}			
 
 				return ret;
 			} else {
-				return walk( d + 1, offset + stride * index, stride, value );
+				return walk( d + 1, offset + stride * index, value );
 			}
 		}
 	}

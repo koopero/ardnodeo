@@ -1,7 +1,10 @@
-const Ardnodeo = require('./Ardnodeo');
-const _s = require('underscore.string');
-const pathlib = require('path');
-const fs = require('fs');
+const 
+	_s = require('underscore.string'),
+	fs = require('fs'),
+	pathlib = require('path'),
+	Ardnodeo = require('./Ardnodeo')
+;
+
 
 module.exports = Bootstrap;
 function Bootstrap ( opt, cb ) {

@@ -1,14 +1,16 @@
 const
+	_ = require('underscore'),
+	async = require('async'),
+	util = require('util'),
+	Compiler = require('./Compiler'),
 	Convert = require('./Convert'),
 	Dimensions = require('./Dimensions'),
 	Protocol = require('./Protocol'),
 	Regulator = require('./Regulator'),
 	Serial = require('./Serial'),
 	Timecode = require('./Timecode'),
-	Variable = require('./Variable'),
-	_ = require('underscore'),
-	async = require('async'),
-	util = require('util');
+	Variable = require('./Variable')
+;
 
 util.inherits( Ardnodeo, require('events').EventEmitter );
 
@@ -19,17 +21,18 @@ var newLine = '\r\n';
 function Ardnodeo ( opt ) {
 	var self = this;
 
-	// Protected variables
+	// Private variables
 	var 
 		_connection,
 		_serialInLine,
 		_receiveQueue = [],
 		_receiveCommand = 0,
 		status = {},
-		_variables = Object.create( null ),
+		_variables,
 		serialBufferSize = 32,
 		outputRegulator = new Regulator( serialBufferSize ),
-		timecodeReader = new (Timecode.Reader) ()
+		timecodeReader = new (Timecode.Reader) (),
+		compiler = new Compiler()
 	;
 
 	opt = opt || {};
@@ -39,7 +42,7 @@ function Ardnodeo ( opt ) {
 
 	self.connection = _connection;
 
-	self.vars = _variables;
+	self.define = compiler.define;
 	self.offsets = [];
 	self.close = close;
 	self.source = sourceFile;
@@ -83,8 +86,39 @@ function Ardnodeo ( opt ) {
 	}
 
 
+
+
 	
 	function sourceFile ( file ) {
+
+		compiler.loadSource( file );
+
+		var mainTypeName = compiler.mainTypeName;
+
+		if ( mainTypeName ) {
+			var mainType = compiler.compileType( mainTypeName );
+			//console.log( 'mainTypeName',mainTypeName);
+			//console.log( 'mainType',mainType);
+
+			var varOpt = {};
+			varOpt.type = mainType;
+			varOpt.offset = 0;
+
+			var mainVariable = new Variable( varOpt );
+			//console.log( "mainVariable", mainVariable );
+
+			var members = mainVariable.flatten( { includeSelf: false });
+			_variables = members;
+			blessVariables();
+			__publicProperty('vars', _variables );
+
+			members.printPretty();
+		}
+		
+
+
+		//throw new Error("Needs to be rethought");
+		/*
 		var Source = require('./Source');
 		var parsed = Source.file( file );
 
@@ -93,8 +127,57 @@ function Ardnodeo ( opt ) {
 		_.map( parsed.vars, function ( v, name ) {
 			varConfig( name, v );
 		});
+		*/
+
+	}
 
 
+	function blessVariables() {
+		var memorySize = 0;
+		_variables.forEach( function ( variable ) {
+			memorySize = Math.max( memorySize, variable.end );
+		});
+
+		growMemory( memorySize );
+
+		_variables.forEach( function ( variable ) {
+			variable.set = function( values, indexes, callback ) {
+				var args = Dimensions.parseDimensionsArguments( variable, arguments, 1, true );
+
+				if ( args.callback ) {
+					// More complicated way: 
+
+					// TODO: Currently, poke doesn't support callback
+					var pokeCalls = variable.write( function ( buffer, offset ) {
+						return function ( cb ) {
+							poke( offset, buffer, cb );
+						}
+					});
+
+					pokeCalls = _.flatten( [ pokeCalls ] );
+
+
+				} else {
+					// Easier way: Don't keep track of poke calls.
+					variable.write( function ( buffer, offset ) {
+						poke( offset, buffer );
+					}, values, args );
+				}
+			};
+
+			variable.get = function( indexes, callback ) {
+				var args = Dimensions.parseDimensionsArguments( variable, arguments, 0, true );
+
+				return variable.read( self.memory, args );
+			};
+
+			Object.defineProperty( variable, 'value', {
+				get: variable.get,
+				set: variable.set
+			});
+
+
+		});
 	}
 
 
@@ -257,21 +340,26 @@ function Ardnodeo ( opt ) {
 			_receiveCommand = Protocol.poke;
 		});
 		receiveBuffer( Protocol.poke, inputBuffer, function ( err ) {
+
 			if ( bufferSliceIsDifferent( self.memory, offset, inputBuffer ) ) {
-				
+
 				growMemory( offset + inputBuffer.length );
 				inputBuffer.copy( self.memory, offset );
-				var variable = varAtOffset( offset );
-				if ( variable ) {
+
+				_variables.forEach ( function ( variable, name ) {
 					if ( variable.listeners('change').length ) {
-						var index = variable.offsetIndex( offset );
-						variable.emit( 
+						var index = variable.indexAtOffset( offset );
+						if ( !index )
+							return;
+
+						variable.emit(
 							'change',
-							variable.readLocal( index ),
+							variable.get( index ),
 							index
 						);
 					}
-				}
+				});
+				
 			};
 
 
@@ -505,18 +593,6 @@ function Ardnodeo ( opt ) {
 		growMemory( variable.offset + variable.size );
 	}
 
-	commands.varAtOffset = varAtOffset;
-	function varAtOffset( offset ) {
-		for ( var varName in _variables ) {
-			var variable = _variables[varName];
-			if ( 
-				variable.offset <= offset 
-				&& variable.offset + variable.size > offset 
-			)
-				return variable;
-		}
-	}
-
 	function growMemory ( length ) {
 		if ( !self.memory || self.memory.length < length ) {
 			var newMirror = new Buffer( length );
@@ -527,7 +603,7 @@ function Ardnodeo ( opt ) {
 		}
 	}
 
-
+	/*
 	commands.varWrite = varWrite;
 	function varWrite ( varName, values, indexes, cb ) {
 		var variable = getVar( varName );
@@ -590,16 +666,31 @@ function Ardnodeo ( opt ) {
 
 		return variable;
 	}
+	*/
 
 
 	commands.reset = reset;
 	function reset () {
-		queueOutput( packOutput( 
+		sendImmediate( packOutput( 
 			packCommand( Protocol.reset )
 		) );
+		_connection.reset();
 	}	 
 
 	self.Protocol = Protocol;
+
+
+	//	--------------------
+	//	Object Setup Helpers
+	//	--------------------
+
+
+	function __publicProperty( methodName, method ) {
+		Object.defineProperty( self, methodName, {
+			enumerable: true,
+			value: method
+		});
+	}
 
 }
 

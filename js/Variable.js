@@ -1,82 +1,312 @@
 const
+	_ = require('underscore'),
+	_s = require('underscore.string'),
+	assert = require('chai').assert,
+	colors = require('colors'),
 	events = require('events'),
-	util = require('util')
+	util = require('util'),
+	Dimensions = require('./Dimensions'),
+	RegionList = require('./RegionList'),
+	Type = require('./Type'),
+	VariableList = require('./VariableList')
 ; 
 
-const
-	Types = require('./Types')
-;
+colors.setTheme( {
+	varType: 'green',
+	varPrefix: 'grey',
+	varName: 'bold',
+	varOffset: 'grey',
+	varDimBracket: 'red',
+	varDim: 'yellow',
+	varStrideBracket: 'blue',
+	varStride: 'green',
+	
+	varComment: 'cyan'
+});
+
 
 module.exports = Variable;
 
 util.inherits( Variable, events.EventEmitter );
-function Variable ( name, opt ) {
-	if ( 'string' != typeof name )
-		throw new TypeError ( 'Invalid var name' );
+function Variable ( opt ) {
+	//
+	//	Parse and validate options.
+	//
 
-	if ( 'number' != typeof opt.offset )
-		throw new TypeError ( 'Invalid or unspecified offset' );
+	assert.isNumber( opt.offset, 'offset must be Number');
+	assert.equal( opt.offset, Math.floor( opt.offset ), 'Offset be be integer');
+	assert.instanceOf( opt.type, Type, 'Type must be instance of Type');
 
-	if ( 'string' == typeof opt.type )
-		opt.type = Types[opt.type];
+	if ( opt.stride ) {
+		assert.isArray( opt.stride, "Predefined stride must be array" );
+		opt.stride.forEach( function ( value ) {
+			assert.typeOf( value, 'number', "Stride must be number" );
+			assert.equal( value, Math.floor( value ), "stride must be integer" );
+		});
+	}
 
-	if ( 'object' != typeof opt.type )
-		throw new TypeError ( 'Invalid or unspecified type' );
+	if ( opt.dims ) {
+		assert.isArray( opt.dims, "Dims must be array" );
+		opt.dims.forEach( function ( value ) {
+			assert.typeOf( value, 'number', "dim must be number" );
+			assert.equal( value, Math.floor( value ), "dim must be integer" );
+		});		
+	}
+
+
+
+
 
 	var self = this;
-	_const( 'name',	name );
+
+	var stride = opt.stride || [],
+		dims = opt.dims || [],
+		numDims = dims.length,
+		length,
+		end;
+
+
+	length = 1;
+	dims.forEach( function ( dim ) {
+		length *= dim;
+	});
+
+
+	var strideCur = opt.type.size;
+	for ( var i = numDims - 1; i >= 0; i -- ) {
+		if ( !stride[i] ) {
+			stride[i] = strideCur;
+		}
+		strideCur *= dims[i];
+	}
+
+	//
+	//	Compute end of variable
+	//
+	end = opt.offset + opt.type.size;
+	for ( var i = 0; i < numDims; i ++ ) {
+		end += stride[i] * (dims[i] - 1);
+	}
+
+
+	
+
+
+
+
+
+	_const( 'name',	opt.name );
 	_const( 'type', opt.type );
 	_const( 'offset', opt.offset );
-	_const( 'dims', opt.dims || [] );
+	_const( 'dims', dims );
+	_const( 'stride', stride );
+	_const( 'end', end );
 
 	if ( opt.comment ) {
 		_const( 'comment', opt.comment );
 	}
 
-	var length = 1;
-	self.dims.forEach( function ( dim ) {
-		length *= dim;
-	});
-
 	_const( 'length', length );
 	_const( 'size', self.type.size * self.length );
-
-	_method( 'offsetIndex', offsetIndex );
-
-	Object.defineProperty( self, 'value', {
-		get: function () {
-			return self.readLocal();
-		},
-		set: function ( value ) {
-			self.write( value );
-			return self.readLocal();
-		}
-	});
+	_method( 'getOpt', getOpt );
+	_method( 'indexAtOffset', indexAtOffset );
+	_method( 'read', read );
+	_method( 'write', write );
+	_method( 'toBuffer', toBuffer );
+	_method( 'printPretty', printPretty );
+	_method( 'flatten', flatten );
 
 	//
 	//	Methods
 	//
 
-	function offsetIndex( offset ) {
-		if ( offset < self.offset )
-			return;
+	function getOpt() {
+		return {
+			name: self.name,
+			type: self.type,
+			offset: self.offset,
+			comment: self.comment,
+			dims: dims.concat(),
+			stride: stride.concat(),
+		};
+	}
 
-		if ( offset >= self.offset + self.size )
-			return;
+	function read( buffer, indexes ) {
+		var dim = Dimensions.parseDimensionsArguments( self, arguments, 1, false );
+		return Dimensions.walkDimensions( function ( offset ) {
+			return self.type.fromBuffer( buffer, offset );
+		}, dim );
+	}
+
+	function write( target, values, indexes ) {
+		
+		if ( Buffer.isBuffer( target ) ) {
+			
+			var buffer = target;
+			
+			target = function ( valueBuffer, offset ) {
+				valueBuffer.copy( buffer, offset );
+			};
+
+		} else if ( 'function' != typeof target ) {
+			throw new TypeError( "target must be Buffer or function" );
+		}
+
+		var dim = Dimensions.parseDimensionsArguments( self, arguments, 2, false );
+		var sparse = self.type.isGroup;
+		if ( sparse ) {
+			return Dimensions.walkDimensions( function ( offset, value ) {
+				self.type.write( target, value, offset );
+			}, dim, values );
+		} else {
+			if ( !Array.isArray( values ) ) {
+
+				// If values isn't an Array, we can do the conversion from
+				// value to buffer once, instead of for every index.
+				
+				var valueBuffer = self.type.toBuffer( values );
+				return Dimensions.walkDimensions( function ( offset ) {
+					target( valueBuffer, offset );
+				}, dim );
+			} else {
+
+				return Dimensions.walkDimensions( function ( offset, value ) {
+					var valueBuffer = self.type.toBuffer( value );
+					target( valueBuffer, offset );
+				}, dim, values );
+			}
+		}
+	}
+
+	function toBuffer( values, index ) {
+		var buffer = new Buffer( self.size );
+		buffer.fill( 0 );
+		var dim = Dimensions.parseDimensionsArguments( self, arguments, 1, false );
+		write( buffer, values, dim );
+		return buffer;
+	}
+
+
+	function indexAtOffset( offset ) {
+		if ( offset < self.offset )
+			return undefined;
+
+		if ( !numDims )
+			if ( offset < self.offset + self.type.size )
+				return [];
+			else
+				return undefined;
 
 		offset -= self.offset;
 
 		var ret = [];
-		var stride = self.size;
 
-		for ( var i = 0; i < self.dims.length; i ++ ) {
-			var dim = self.dims[i];
-			stride /= dim;
+		for ( var i = 0; i < dims.length; i ++ ) {
+			var index = Math.floor( offset / stride[i] );
+			if ( index >= dims[i] || index < 0 )
+				return;
 
-			var index = Math.floor( offset / stride );
 			ret[i] = index;
-			offset -= index * stride;
+			offset -= index * stride[i];
 		}
+		return ret;
+	}
+
+	function printPretty ( write, prefix, indent ) {
+		if ( !write )
+			write = process.stdout.write.bind( process.stdout );
+
+		prefix = prefix || '';
+		var v = self;
+		var line = '';
+		line += prettyHexShort( v.offset ).varOffset;
+		line += ' ';
+		line += prettyHexShort( v.offset + v.size ).varOffset;
+		line += ' ';
+		line += _s.pad( v.type.name, 16, ' ' ).varType;
+		line += ' ';
+		line += prefix.varPrefix;
+		line += ( v.name ? v.name.varName : 'anonymous' );
+
+		for ( var dim in v.dims ) {
+			line +='['.varDimBracket+String(v.dims[dim]).varDim+']'.varDimBracket;
+		}
+
+		line += ' ';
+
+		for ( var stride in v.stride ) {
+			line +='{'.varStrideBracket+String(v.stride[stride]).varStride+'}'.varStrideBracket;
+		}
+
+		if ( v.comment ) {
+			line += ('  // '+v.comment).varComment;
+		}
+		line += '\n';
+		write( line );
+
+		if ( false && self.type.members ) {
+			_.map( self.type.members, function ( member ) {
+				member.printPretty( write, prefix + ( v.name ? v.name+'.' : '.' ) );
+			} );
+		}
+
+		function prettyHexShort ( num ) {
+			return _s.pad( num.toString( 16 ), 4, '0' );
+		}
+	}
+
+	function flatten( opt ) {
+
+		//console.log(  "flatten", opt, self );
+
+		opt = opt || {};
+		
+
+		opt.namePrefix = opt.namePrefix || '';
+		opt.offset = opt.offset || 0;
+		opt.stridePrefix = opt.stridePrefix || [];
+		opt.dimsPrefix = opt.dimsPrefix || [];
+		opt.includeSelf = opt.includeSelf !== false;
+
+		var ret = [];
+		var selfOpt = self.getOpt();
+
+
+		selfOpt.name = opt.namePrefix + ( selfOpt.name || '' );
+		selfOpt.offset += opt.offset;
+		selfOpt.dims = opt.dimsPrefix.concat( selfOpt.dims );
+		selfOpt.stride = opt.stridePrefix.concat( selfOpt.stride );
+
+
+
+		var selfClone = new Variable( selfOpt );
+
+
+		if ( opt.includeSelf ) {		
+			ret.push( selfClone )
+		}
+
+		if ( self.type.isGroup ) {
+			var memberOpt  = _.clone( opt );
+			memberOpt.includeSelf = true;
+			memberOpt.namePrefix = selfOpt.name ? selfOpt.name + '.' : '';
+			memberOpt.offset = selfOpt.offset;
+			memberOpt.dimsPrefix = selfOpt.dims;
+			memberOpt.stridePrefix = selfOpt.stride;
+
+			//console.log( "memberOpt", memberOpt );
+
+			var membersRet = _.map( self.type.members, function ( member ) {
+				var flattenedMember = member.flatten( memberOpt );
+				return flattenedMember.array;
+			});
+
+			ret = ret.concat( _.flatten( membersRet ) );
+		}
+
+
+
+		ret = new VariableList( ret );
 		return ret;
 	}
 

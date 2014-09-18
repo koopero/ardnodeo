@@ -23,17 +23,20 @@ public:
 		enum Command {
 			acknowledge = 0,
 			event = 1,
-			pinMode = 3,
-			analogRead = 4,
-			digitalRead = 5,
-			peek = 6,
-			poke = 7,
+			timecode = 2,
+			analogRead = 3,
+			digitalRead = 4,
+			peek = 5,
+			poke = 6,
+			eepromRead = 7, 
 			
 			analogWrite = 8,
 			digitalWrite = 9,
-			setFlags = 10,
-			reset = 11,
-			hello = 12
+			eepromWrite = 10, 
+			setFlags = 11,
+			reset = 12,
+			hello = 13,
+			pinMode = 14
 		};
 
 		enum PinMode {
@@ -43,8 +46,7 @@ public:
 		};
 
 		enum Flags {
-			connected = 1,
-			timecode = 2
+			connected = 1
 		};
 
 		enum Operators { 
@@ -66,14 +68,15 @@ public:
 	void setup();
 	
 	bool loop( ms_t minDelay = 0, ms_t maxDelay = 0 );
-
 	bool isConnected();
 	
-	bool flush();
-
 	bool catchEvent( uint8_t eventCode );
 	bool sendEvent( event_t event );
 
+	
+
+	bool beginPacket ();
+	bool endPacket();
 	bool sendCommand ( command_t commandId, arg_t arg = 0 );
 	bool sendByte ( unsigned char byte );
 	bool sendWord ( uint16_t word );	
