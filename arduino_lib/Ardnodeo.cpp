@@ -60,8 +60,8 @@ bool Ardnodeo::loop( ms_t minDelay, ms_t maxDelay ) {
 		}
 
 		
-		if ( age + 1 < minDelay )
-			delay(1);
+		if ( age + 2 < minDelay )
+			delay(2);
 
 	} while ( age < minDelay );
 
@@ -319,13 +319,24 @@ bool Ardnodeo::sendCommand( uint8_t cmd, uint8_t arg ) {
 
 bool Ardnodeo::pokeMemory( void * loc, size_t size, bool force ) {
 	int16_t offset =  (int) loc - (int) data;
-	return 
-		beginPacket()
-		&& sendCommand( Protocol::poke, size - 1 )
-		&& sendWord( offset )
-		&& sendMemory( loc, size )
-		&& endPacket ()
-	;
+
+	while ( size ) {
+		uint8_t packetSize = min( size, 16 );
+		if ( !(
+			beginPacket()
+			&& sendCommand( Protocol::poke, packetSize - 1 )
+			&& sendWord( offset )
+			&& sendMemory( loc, size )
+			&& endPacket ()
+		)) 
+			return false;
+
+		loc = (void *)((int)loc + packetSize );
+		size -= packetSize; 
+		offset += packetSize;
+	}
+
+	return true;
 }
 
 
