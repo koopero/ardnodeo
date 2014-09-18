@@ -68,7 +68,7 @@ describe('Variable', function () {
 		})
 	});
 
-	describe('readBuffer', function () {
+	describe('read', function () {
 		it('should read a single float', function () {
 			var compiler = new Compiler();
 			var single = compiler.compileVar( 'float single;', 3 );
@@ -77,7 +77,7 @@ describe('Variable', function () {
 			var buffer = new Buffer( 100 );
 			buffer.writeFloatLE( value, 3 );
 
-			assert.equal( value, single.readBuffer( buffer ) );
+			assert.equal( value, single.read( buffer ) );
 		});
 
 		it('should read multiple bools', function () {
@@ -85,7 +85,7 @@ describe('Variable', function () {
 			var variable = compiler.compileVar( 'bool bool[6];' );
 
 			var buffer = new Buffer( [ 0, 1, 0, 1, 0, 1] );
-			assert.deepEqual( [ false, true, false, true, false, true ], variable.readBuffer( buffer ) );
+			assert.deepEqual( [ false, true, false, true, false, true ], variable.read( buffer ) );
 		});
 
 		it('should read a struct', function () {
@@ -93,7 +93,7 @@ describe('Variable', function () {
 			var variable = compiler.compileVar( 'struct { char a; char b; char c; } foo;' );
 
 			var buffer = new Buffer( [ 10, 20, 40 ] );
-			assert.deepEqual( { a: 10, b: 20, c: 40 }, variable.readBuffer( buffer ) );
+			assert.deepEqual( { a: 10, b: 20, c: 40 }, variable.read( buffer ) );
 		});
 
 		it('should read a union', function () {
@@ -101,7 +101,7 @@ describe('Variable', function () {
 			var variable = compiler.compileVar( 'union { char a; char b; char c; } foo;', 4 );
 
 			var buffer = new Buffer( [ 0,0,0,0,13 ] );
-			assert.deepEqual( { a: 13, b: 13, c: 13 }, variable.readBuffer( buffer ) );
+			assert.deepEqual( { a: 13, b: 13, c: 13 }, variable.read( buffer ) );
 		});
 	});
 
