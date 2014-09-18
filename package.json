@@ -1,6 +1,6 @@
 {
   "name": "ardnodeo",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "A flexible and fluent interface between node and Arduino",
   "author": {
     "name": "koopero",

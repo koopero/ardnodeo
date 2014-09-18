@@ -23,7 +23,7 @@ var Ardnodeo = require('ardnodeo');
 var arduino = Ardnodeo.Bootstrap();
 
 // Load the sketch.
-arduino.source('HelloWorld.ino');
+arduino.source('Blink.ino');
 
 // Since we already defined LED_PIN in the sketch, no need to define it again.
 var ledPin = arduino.define.LED_PIN;
@@ -50,11 +50,9 @@ This example is a cut down version of the [FastLED Example](example/FastLED/)
 #define KERNAL_SIZE 5
 
 struct data_t {
-  //#ARDNODEO_VARS
   signed short ledSpeed;
   signed char ledConvolution[KERNAL_SIZE];
   CRGB ledBuffer[NUM_LEDS];
-  //#/ARDNODEO_VARS
 } data;
 
 ArdnodeoData<data_t> ard = ArdnodeoData<data_t>( &data );
@@ -71,12 +69,13 @@ arduino.source('Sketch.ino');
 arduino.define.NUM_LEDS == 90;
 
 // Setting variables
-arduino.varWrite('ledSpeed', -200 );
+arduino.vars.ledSpeed.value = -200;
 
 // Setting an array index.
-arduino.varWrite('ledConvolution', 10, 1 );
+// Equivalent to ledConvolution[1] = 10;
+arduino.vars.ledConvolution.set( 10, 1 );
 
 // Recognizes FastLED's CRGB class and recognizes colours.
-arduino.varWrite('leds', 'red', 0 );
+arduino.vars.leds( 'red', 0 );
 ```
 

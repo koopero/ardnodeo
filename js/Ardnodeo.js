@@ -1,10 +1,12 @@
 const
 	_ = require('underscore'),
+	assert = require('chai').assert,
 	async = require('async'),
 	util = require('util'),
 	Compiler = require('./Compiler'),
 	Convert = require('./Convert'),
 	Dimensions = require('./Dimensions'),
+	Parse = require('./Parse'),
 	Protocol = require('./Protocol'),
 	Regulator = require('./Regulator'),
 	Serial = require('./Serial'),
@@ -452,7 +454,11 @@ function Ardnodeo ( opt ) {
 	}
 
 	commands.pinMode = function ( pin, mode ) {
-		pin = parseInt( pin );
+		pin = Parse.integer( pin );
+
+		if ( isNaN( pin ) )
+			throw new Error( "Pin must be number");
+
 		mode = parseInt( mode );
 		queueOutput( packOutput( 
 			packCommand( Protocol.pinMode, mode ),
@@ -461,6 +467,11 @@ function Ardnodeo ( opt ) {
 	}
 
 	commands.digitalWrite = function ( pin, value ) {
+		pin = Parse.integer( pin );
+
+		if ( isNaN( pin ) )
+			throw new Error( "Pin must be number");
+
 		queueOutput( packOutput( 
 			packCommand( Protocol.digitalWrite, value ? 1 : 0 ),
 			pin

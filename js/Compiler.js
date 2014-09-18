@@ -213,13 +213,10 @@ function Compiler () {
 			});
 
 		}
-		
-		// TODO: Add other directories, most importantly Documents/Arduino/libraries
 
 		return ret;
 
 		function add( tryFile ) {
-			log( "possibleIncludeFiles.add", tryFile );
 			ret.push( tryFile )
 		}
 	}
