@@ -158,7 +158,7 @@ void loop() {
   // Set onboard LED to whether ardnodeo is connected
   digitalWrite( ACTIVITY_PIN, node.flags & 2 ? HIGH : LOW );
 
-  node.loop();
+  node.loop(1000/60);
 
   if ( data.snowFreq && !( frame % data.snowFreq ) ) {
     uint16_t index = random(STRIP_LENGTH);

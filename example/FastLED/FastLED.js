@@ -16,12 +16,13 @@ var colour = new onecolor( "red" );
 var STRIP_LENGTH = ard.define.STRIP_LENGTH; 
 
 var phase;
-function tick () {
+function tick ( tc ) {
 	if ( phase === undefined ) phase = Math.random() * 1000;
 	phase += 0.01;
 
 	var colour = new onecolor.HSV( phase % 1, Math.random(), Math.random() );
 	var index = Math.floor( Math.random() * STRIP_LENGTH );
+	ard.vars.ledBuffer.set( colour, index );
 }
 
 var phase = 0;
