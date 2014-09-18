@@ -33,7 +33,7 @@ const REGEX = {
 var Parse = exports;
 Parse.REGEX = REGEX;
 
-Parse.typeDeclaration = function ( source, compiler ) {
+Parse.typeDeclaration = function ( source ) {
 	var 
 		parse = source,
 		ret = {}
@@ -46,7 +46,7 @@ Parse.typeDeclaration = function ( source, compiler ) {
 		parse = isTypedef;
 	}
 
-	var type =  Parse.type( parse, compiler );
+	var type =  Parse.type( parse );
 	ret.type = type;
 	ret.typeName = type.typeName;
 	parse = type.after;
@@ -65,12 +65,11 @@ Parse.typeDeclaration = function ( source, compiler ) {
 	var endOfLine = Parse.endOfLine( parse );
 	parse = endOfLine.after;
 
-	return parsedResult( 'typeDeclaration', ret, source, parse, compiler );
+	return parsedResult( 'typeDeclaration', ret, source, parse );
 
 }
 
-Parse.type = function ( source, compiler ) {
-	compiler = defaultCompiler( compiler );
+Parse.type = function ( source ) {
 
 	var parse = source;
 
@@ -80,7 +79,7 @@ Parse.type = function ( source, compiler ) {
 	//	Struct
 	//
 
-	var structParse = Parse.group( parse, 'struct', compiler );
+	var structParse = Parse.group( parse, 'struct' );
 	if ( structParse ) {
 		return structParse;
 	}
@@ -88,7 +87,7 @@ Parse.type = function ( source, compiler ) {
 	//
 	//	Union
 	//
-	var unionParse = Parse.group( parse, 'union', compiler );
+	var unionParse = Parse.group( parse, 'union' );
 	if ( unionParse ) {
 		return unionParse;
 	}
@@ -106,7 +105,7 @@ Parse.type = function ( source, compiler ) {
 		if ( match = matchTokenLeft( parse, primitiveName ) ) {
 			return parsedResult( 'type', {
 				typeName: primitiveName
-			}, source, match[1], compiler );
+			}, source, match[1] );
 		}
 	}
 
@@ -122,15 +121,14 @@ Parse.type = function ( source, compiler ) {
 }
 
 
-Parse.member = function ( source, compiler ) {
-	compiler = defaultCompiler( compiler );
+Parse.member = function ( source ) {
 
 	var parse = source;
 
 	var ret = {};
 
 	// Get the type
-	var type = Parse.type( parse, compiler );
+	var type = Parse.type( parse );
 	parse = type.after;
 	ret.memberType = type;
 
@@ -143,7 +141,7 @@ Parse.member = function ( source, compiler ) {
 		if ( endLine ) {
 			ret.comment = endLine.comment;
 			parse = endLine.after;
-			return parsedResult( 'member', ret, source, parse, compiler );
+			return parsedResult( 'member', ret, source, parse );
 		}
 	}
 
@@ -168,11 +166,10 @@ Parse.member = function ( source, compiler ) {
 	ret.comment = endOfLine.comment;
 	parse = endOfLine.after;
 
-	return parsedResult( 'member', ret, source, parse, compiler );
+	return parsedResult( 'member', ret, source, parse );
 }
 
-Parse.group = function ( source, groupType, compiler ) {
-	compiler = defaultCompiler( compiler );
+Parse.group = function ( source, groupType ) {
 	var parse = source,
 		ret = {};
 
@@ -195,22 +192,21 @@ Parse.group = function ( source, groupType, compiler ) {
 	parse = match.after;
 
 	var inBraces = Parse.untilRightBrace( parse );
-	ret.members = Parse.members( inBraces.inside, compiler );
+	ret.members = Parse.members( inBraces.inside );
 
-	return parsedResult( 'group', ret, source, inBraces.after, compiler );
+	return parsedResult( 'group', ret, source, inBraces.after );
 }
 
-Parse.members = function ( source, compiler ) {
+Parse.members = function ( source ) {
 	var parse = source;
 
-	compiler = defaultCompiler( compiler );
 	var members = [];
 	do {
 		parse = stripWhitespaceAndComments( parse );
 		if ( !parse.length )
 			break;
 
-		var member = Parse.member( parse, compiler );
+		var member = Parse.member( parse );
 		if ( member ) {
 			members.push( member );
 			parse = member.after;
@@ -318,7 +314,7 @@ Parse.enums = function ( source ) {
 
 /**
 	Parse a string to an integer in the same fashion as
-	a C compiler, including horrendous octal numbers.
+	a C compiler, including horrendous octal and binary numbers.
 */
 Parse.integer = function ( str ) {
 	if ( str[0] == '0' ) {
@@ -406,16 +402,15 @@ function ParseError ( module, message, source, context ) {
 
 /**
 	Return a prettier object with the results of a parse.
-	The properties `input`, `compiler` and `after` are set
+	The properties `input` and `after` are set
 	as unemunerable to make for less verbose tracing of
 	results.
 */
 
-function parsedResult ( parseType, result, input, after, compiler ) {
+function parsedResult ( parseType, result, input, after ) {
 	result.parseType = parseType;
 	hide( 'after', after );
 	hide( 'input', input );
-	hide( 'compiler', compiler );
 
 	return result;
 
@@ -428,14 +423,6 @@ function parsedResult ( parseType, result, input, after, compiler ) {
 
 }
 
-function defaultCompiler( compiler ) {
-	var Compiler = require('./Compiler');
-
-	if ( compiler instanceof Compiler )
-		return compiler;
-
-	return new Compiler( compiler );
-}
 
 Parse.stripWhitespaceAndComments = stripWhitespaceAndComments;
 
