@@ -1,8 +1,14 @@
 const
 	_ = require('underscore'),
 	_s = require('underscore.string'),
+	colors = require('colors')
 	Primitives = require('./Primitives')
 ;
+
+colors.setTheme( {
+	parseErrorSubject: 'red',
+	parseErrorContext: 'yellow'
+});
 
 const REGEX = {
 	sectionNamed: "\\/\\/\\s*\\#SECTION_NAME([\\s\\S]*)\\/\\/\\s*\\#\\/SECTION_NAME", // Regex source, not RegExp
@@ -50,12 +56,18 @@ Parse.typeDeclaration = function ( source ) {
 	ret.type = type;
 	ret.typeName = type.typeName;
 	parse = type.after;
+
+	if ( !isTypedef && ret.typeName ) {
+		return parsedResult( 'typeDeclaration', ret, source, parse );
+	}
 	
 	var nameMatch = parseRegex( parse, REGEX.typeName );
 	if ( nameMatch ) {
-		if ( ret.typeName ) {
-			return ParseError( 'typeDeclaration', "Named group inside typedef not supported.", parse, source );
-		}
+
+		// Unfortunately, we've ignored any named structs
+		// in the typedef, such as:
+		// typedef struct foo { ... } bar;
+
 		ret.typeName = nameMatch[1];
 		parse = nameMatch.after;
 	} else if ( !ret.typeName ) {
@@ -394,8 +406,16 @@ Parse.removeComments = function ( source ) {
 function ParseError ( module, message, source, context ) {
 	var error = new Error( module+": "+message );
 
-	console.log( source );
-	console.log( context );
+	if ( source && context ) {
+		var sourceOffset = context.indexOf( source );
+
+		process.stderr.write( context.substr( 0, sourceOffset ).parseErrorContext );
+		process.stderr.write( _s.truncate( source, 64 ).parseErrorSubject );
+	}
+
+
+	//console.log( "SOURCE\n\n",source );
+	//console.log( "CONTEXT\n\n\n", context );
 
 	throw error;
 }
