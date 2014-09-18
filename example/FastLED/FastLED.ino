@@ -19,7 +19,6 @@
 
 
 struct data_t {
-  //#ARDNODEO_VARS
   int16_t   snowFreq; // Add random snow locally
   bool      convolutionActive;  // Whether to run convolution
   bool      normalizeKernel; // Whether to automatically set kernelDiv
@@ -28,7 +27,6 @@ struct data_t {
   uint16_t  kernelDiv[CHANNELS];
   CRGB      edgeColour;
   CRGB      ledBuffer[STRIP_LENGTH];
-  //#/ARDNODEO_VARS
 } data;
 
 // Useful little clamp function

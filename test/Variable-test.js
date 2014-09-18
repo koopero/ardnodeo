@@ -17,6 +17,11 @@ describe('Variable', function () {
 			assert.equal( array.stride[0], 12 );
 		});
 
+		it('will produce a property `end`', function () {
+			var compiler = new Compiler();
+			var array = compiler.compileVar('float matrix[4][3];', 2);
+			assert.equal( array.end, 4 * 4 * 3 + 2 );
+		});
 
 	});
 

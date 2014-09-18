@@ -12,7 +12,6 @@ colors.setTheme( {
 
 const REGEX = {
 	sectionNamed: "\\/\\/\\s*\\#SECTION_NAME([\\s\\S]*)\\/\\/\\s*\\#\\/SECTION_NAME", // Regex source, not RegExp
-	VAR_LINE: /\s*(.*?);\s*(\/\/\s*(.*?)$)?/mg,
 
 	gatherTypedefs: /typedef\s+/g,
 	gatherStructs: /struct\s+[a-zA-Z_]/g,
@@ -32,12 +31,23 @@ const REGEX = {
 	memberName: /[a-zA-Z_]+[a-zA-Z0-9]*/,
 	arrayDimensions: /^(\[.*\])*/,
 	endLine: /^\s*;(\s*\/\/\s*(.*)\s*$)?/m,
-	VAR_DEC: /\s*([a-zA-Z_][a-zA-Z0-9]+)\s*((\[(.*)\])*)$/,
 
+	ArdnodeoData: /ArdnodeoData\s*<\s*([a-zA-Z_]+[a-zA-Z0-9_]*)\s*>\s*\((.*?)\)/
 }
 
 var Parse = exports;
 Parse.REGEX = REGEX;
+
+
+Parse.ArdnodeoData = function ( source ) {
+	var match = REGEX.ArdnodeoData.exec( source );
+	if ( match ) {
+		return {
+			typeName: match[1],
+			varName: match[2]
+		}
+	}
+}
 
 Parse.typeDeclaration = function ( source ) {
 	var 

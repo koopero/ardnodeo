@@ -46,8 +46,7 @@ public:
 		};
 
 		enum Flags {
-			connected = 1,
-			timecode = 2
+			connected = 1
 		};
 
 		enum Operators { 
@@ -72,11 +71,14 @@ public:
 
 	bool isConnected();
 	
-	bool flush();
+	
 
 	bool catchEvent( uint8_t eventCode );
 	bool sendEvent( event_t event );
 
+
+	bool beginPacket ();
+	bool endPacket();
 	bool sendCommand ( command_t commandId, arg_t arg = 0 );
 	bool sendByte ( unsigned char byte );
 	bool sendWord ( uint16_t word );	

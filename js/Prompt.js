@@ -60,8 +60,7 @@ function Prompt( ard ) {
 
 
 function showVars ( out, vars ) {
-
-	vars = _.values( vars );
+	vars = _.values( vars.array );
 	vars.sort( function ( a, b ) {
 		if ( a.offset < b.offset )
 			return -1;
@@ -74,6 +73,8 @@ function showVars ( out, vars ) {
 
 
 	var memLength = 0;
+
+
 
 	for ( var k in vars ) {
 		var v = vars[k];

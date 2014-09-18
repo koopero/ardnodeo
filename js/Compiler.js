@@ -78,6 +78,7 @@ function Compiler () {
 		opt = opt || {};
 		_.defaults( opt, {
 			removeComments: false,
+			mainSource: true, 
 			maxLevels: 8 
 		});
 
@@ -96,7 +97,16 @@ function Compiler () {
 				removeComments: false
 			});
 
-			var source = cache.readFile( file );
+			var source;
+
+			try {
+				source = cache.readFile( file );
+			} catch ( error ) {
+
+				return false;
+			};
+
+
 			var dir = path.dirname( file );
 				
 			var parse = source;
@@ -115,13 +125,14 @@ function Compiler () {
 			if ( includes.length ) {
 				var includeOpt = _.clone( opt );
 				includeOpt.maxLevels = opt.maxLevels - 1;
-
+				includeOpt.mainSource = false;
 
 				includes.forEach( function ( includeFile ) {
 					var filesToTry = possibleIncludeFiles( includeFile, dir );
 					for ( var i in filesToTry ) {
 						var file = filesToTry[i];
-						_loadSource( file, includeOpt ); 
+						if ( _loadSource( file, includeOpt ) ) 
+							break;
 					}
 				});
 				
@@ -147,6 +158,25 @@ function Compiler () {
 				declareType( parsed );
 			});
 
+			//
+			// Extract main variable definition
+			//
+			if ( opt.mainSource ) {
+				var mainVar = Parse.ArdnodeoData( parse );
+				if ( mainVar )
+					__publicProperty( 'mainTypeName', mainVar.typeName );
+				//console.log( "MAIN VAR", mainVar );
+			}
+
+			/*
+			var variable = compileVar('data_t data;');
+			var type = compileType('data_t');
+			console.log( "Variable type", type );
+			var members = variable.flatten();
+			members.printPretty();
+			*/
+
+			return true;
 			
 		}
 
@@ -214,7 +244,7 @@ function Compiler () {
 			
 
 		if ( !dec )
-			throw new Error( "Type not declared" );
+			throw new Error( "Type '"+typeName+"' not declared" );
 
 		switch ( dec.parseType ) {
 			case 'group':

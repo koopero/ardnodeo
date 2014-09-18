@@ -28,7 +28,7 @@ function Ardnodeo ( opt ) {
 		_receiveQueue = [],
 		_receiveCommand = 0,
 		status = {},
-		_variables = Object.create( null ),
+		_variables,
 		serialBufferSize = 32,
 		outputRegulator = new Regulator( serialBufferSize ),
 		timecodeReader = new (Timecode.Reader) (),
@@ -42,7 +42,7 @@ function Ardnodeo ( opt ) {
 
 	self.connection = _connection;
 
-	self.vars = _variables;
+	self.define = compiler.define;
 	self.offsets = [];
 	self.close = close;
 	self.source = sourceFile;
@@ -86,9 +86,35 @@ function Ardnodeo ( opt ) {
 	}
 
 
+
+
 	
 	function sourceFile ( file ) {
-		throw new Error("Needs to be rethought");
+
+		compiler.loadSource( file );
+
+		var mainTypeName = compiler.mainTypeName;
+		var mainType = compiler.compileType( mainTypeName );
+		//console.log( 'mainTypeName',mainTypeName);
+		//console.log( 'mainType',mainType);
+
+		var varOpt = {};
+		varOpt.type = mainType;
+		varOpt.offset = 0;
+
+		var mainVariable = new Variable( varOpt );
+		//console.log( "mainVariable", mainVariable );
+
+		var members = mainVariable.flatten( { includeSelf: false });
+		_variables = members;
+		blessVariables();
+		__publicProperty('vars', _variables );
+
+		members.printPretty();
+		
+
+
+		//throw new Error("Needs to be rethought");
 		/*
 		var Source = require('./Source');
 		var parsed = Source.file( file );
@@ -100,6 +126,51 @@ function Ardnodeo ( opt ) {
 		});
 		*/
 
+	}
+
+
+	function blessVariables() {
+		var memorySize = 0;
+		_variables.forEach( function ( variable ) {
+			memorySize = Math.max( memorySize, variable.end );
+		});
+
+		console.log( "memorySize", memorySize );
+		growMemory( memorySize );
+
+		_variables.forEach( function ( variable ) {
+			variable.set = function( values, indexes, callback ) {
+				var args = Dimensions.parseDimensionsArguments( variable, arguments, 1, true );
+
+				if ( args.callback ) {
+					// More complicated way: 
+
+					// TODO: Currently, poke doesn't support callback
+					var pokeCalls = variable.write( function ( buffer, offset ) {
+						return function ( cb ) {
+							poke( offset, buffer, cb );
+						}
+					});
+
+					pokeCalls = _.flatten( [ pokeCalls ] );
+
+
+				} else {
+					// Easier way: Don't keep track of poke calls.
+					variable.write( function ( buffer, offset ) {
+						poke( offset, buffer );
+					}, values, args );
+				}
+			};
+
+			variable.get = function( indexes, callback ) {
+				var args = Dimensions.parseDimensionsArguments( variable, arguments, 0, true );
+
+				return variable.read( self.memory, args );
+			};
+
+
+		});
 	}
 
 
@@ -607,6 +678,19 @@ function Ardnodeo ( opt ) {
 	}	 
 
 	self.Protocol = Protocol;
+
+
+	//	--------------------
+	//	Object Setup Helpers
+	//	--------------------
+
+
+	function __publicProperty( methodName, method ) {
+		Object.defineProperty( self, methodName, {
+			enumerable: true,
+			value: method
+		});
+	}
 
 }
 

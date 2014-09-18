@@ -22,7 +22,6 @@ function tick () {
 
 	var colour = new onecolor.HSV( phase % 1, Math.random(), Math.random() );
 	var index = Math.floor( Math.random() * STRIP_LENGTH );
-	ard.varWrite( 'ledBuffer', colour, index );
 }
 
 var phase = 0;

@@ -62,7 +62,8 @@ function Variable ( opt ) {
 	var stride = opt.stride || [],
 		dims = opt.dims || [],
 		numDims = dims.length,
-		length;
+		length,
+		end;
 
 
 	length = 1;
@@ -79,6 +80,13 @@ function Variable ( opt ) {
 		strideCur *= dims[i];
 	}
 
+	//
+	//	Compute end of variable
+	//
+	end = opt.offset + opt.type.size;
+	for ( var i = 0; i < numDims; i ++ ) {
+		end += stride[i] * (dims[i] - 1);
+	}
 
 
 	
@@ -92,34 +100,21 @@ function Variable ( opt ) {
 	_const( 'offset', opt.offset );
 	_const( 'dims', dims );
 	_const( 'stride', stride );
+	_const( 'end', end );
 
 	if ( opt.comment ) {
 		_const( 'comment', opt.comment );
 	}
 
-
-
-
-
 	_const( 'length', length );
 	_const( 'size', self.type.size * self.length );
 	_method( 'getOpt', getOpt );
 	_method( 'indexAtOffset', indexAtOffset );
-	_method( 'readBuffer', readBuffer );
+	_method( 'read', read );
 	_method( 'write', write );
 	_method( 'toBuffer', toBuffer );
 	_method( 'printPretty', printPretty );
 	_method( 'flatten', flatten );
-
-	Object.defineProperty( self, 'value', {
-		get: function () {
-			return self.readLocal();
-		},
-		set: function ( value ) {
-			self.write( value );
-			return self.readLocal();
-		}
-	});
 
 	//
 	//	Methods
@@ -136,7 +131,7 @@ function Variable ( opt ) {
 		};
 	}
 
-	function readBuffer( buffer, indexes ) {
+	function read( buffer, indexes ) {
 		var dim = Dimensions.parseDimensionsArguments( self, arguments, 1, false );
 		return Dimensions.walkDimensions( function ( offset ) {
 			return self.type.fromBuffer( buffer, offset );
@@ -265,17 +260,19 @@ function Variable ( opt ) {
 		//console.log(  "flatten", opt, self );
 
 		opt = opt || {};
+		
+
 		opt.namePrefix = opt.namePrefix || '';
 		opt.offset = opt.offset || 0;
 		opt.stridePrefix = opt.stridePrefix || [];
 		opt.dimsPrefix = opt.dimsPrefix || [];
-
+		opt.includeSelf = opt.includeSelf !== false;
 
 		var ret = [];
 		var selfOpt = self.getOpt();
 
 
-		selfOpt.name = opt.namePrefix + selfOpt.name;
+		selfOpt.name = opt.namePrefix + ( selfOpt.name || '' );
 		selfOpt.offset += opt.offset;
 		selfOpt.dims = opt.dimsPrefix.concat( selfOpt.dims );
 		selfOpt.stride = opt.stridePrefix.concat( selfOpt.stride );
@@ -285,13 +282,14 @@ function Variable ( opt ) {
 		var selfClone = new Variable( selfOpt );
 
 
-		
-
-		ret.push( selfClone )
+		if ( opt.includeSelf ) {		
+			ret.push( selfClone )
+		}
 
 		if ( self.type.isGroup ) {
 			var memberOpt  = _.clone( opt );
-			memberOpt.namePrefix = selfOpt.name ? selfOpt.name+'.' : '';
+			memberOpt.includeSelf = true;
+			memberOpt.namePrefix = selfOpt.name ? selfOpt.name + '.' : '';
 			memberOpt.offset = selfOpt.offset;
 			memberOpt.dimsPrefix = selfOpt.dims;
 			memberOpt.stridePrefix = selfOpt.stride;

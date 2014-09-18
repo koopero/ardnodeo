@@ -9,11 +9,33 @@ function VariableList ( list ) {
 	assert.isArray ( list, "Input must be array" );
 
 	var self = this;
-	self.array = list;
+	
+	__hide( 'array', list );
+	__hide( 'forEach', forEach );
 
-	self.printPretty = function () {
-		list.forEach( function ( variable ) {
+	__hide( 'printPretty', function () {
+		forEach( function ( variable ) {
 			variable.printPretty();
 		});
-	};
+	} );
+
+	forEach( function ( variable, name ) {
+		if ( name )
+			self[name] = variable;
+	});
+
+	function forEach( cb ) {
+		list.forEach( function ( variable ) {
+			cb( variable, variable.name )
+		});
+	}
+
+	//
+	//
+	//
+	function __hide( key, value ) {
+		Object.defineProperty( self, key, {
+			value: value
+		});
+	}
 }

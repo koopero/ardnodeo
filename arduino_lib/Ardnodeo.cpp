@@ -1,5 +1,4 @@
 #include "Ardnodeo.h"
-#include ""
 #include <avr/wdt.h>
 
 Ardnodeo::Timecode::Timecode () {
@@ -66,6 +65,10 @@ bool Ardnodeo::loop( ms_t minDelay, ms_t maxDelay ) {
 
 	} while ( age < minDelay );
 
+	return true;
+}
+
+bool Ardnodeo::beginPacket () {
 	return true;
 }
 
@@ -279,6 +282,7 @@ bool Ardnodeo::receiveCommand() {
 		//	---------------
 		//	EEProm Commands
 		//	---------------
+		/*
 		case Protocol::eepromRead:
 		case Protocol::eepromWrite:
 		{
@@ -297,7 +301,8 @@ bool Ardnodeo::receiveCommand() {
 				case Protocol::
 			}
 		}
-		break; 		
+		break; 	
+		*/	
 	}
 
 	return false;
@@ -343,7 +348,7 @@ bool Ardnodeo::sendMemory( void * buf, size_t length ) {
 	}
 	return !length;
 }
-
+/*
 bool Ardnodeo::sendEEProm( uint16_t offset, size_t length ) {
 	while ( length && sendByte( EEProm.read( offset ) ) ) {
 		offset ++;
@@ -351,6 +356,7 @@ bool Ardnodeo::sendEEProm( uint16_t offset, size_t length ) {
 	}
 	return !length;
 }
+*/
 
 
 bool Ardnodeo::readMemory( void * buf, size_t length ) {
