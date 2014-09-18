@@ -6,9 +6,7 @@
 #define LED_PIN 13
 
 struct data_t {
-	//#ARDNODEO_VARS
 	bool buttonState[2];
-  	//#/ARDNODEO_VARS
 } data;
 
 ArdnodeoData<data_t> node = ArdnodeoData<data_t>( &data );
