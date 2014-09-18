@@ -66,7 +66,7 @@ exports.createUnpacker = function ( members ) {
 
 		members.forEach( function ( member ) {
 			var key = member.name;
-			unpacked[key] = member.readBuffer( buffer )
+			unpacked[key] = member.read( buffer )
 		} )
 
 		return unpacked;

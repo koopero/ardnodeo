@@ -3,6 +3,7 @@ const
 	_s = require('underscore.string'),
 	path = require('path'),
 	prettyjson = require('prettyjson'),
+	Environment = require('./Environment'),
 	Parse = require('./Parse'),
 	SourceCache = require('./SourceCache'),
 	Struct = require('./Struct'),
@@ -62,7 +63,11 @@ function Compiler () {
 	//
 
 	function define( key, value, hide ) {
+		if ( !key )
+			return _.clone( defines );
+
 		if ( value !== undefined ) {
+			define[key] = value;
 			defines[key] = value;
 		}
 
@@ -153,9 +158,12 @@ function Compiler () {
 			var declarationOffsets = Parse.gatherRegexOffsets( parse, Parse.REGEX.gatherTypedefs, Parse.REGEX.gatherStructs );
 			
 			Parse.forEachOffset( parse, declarationOffsets, function ( parse, offset ) {
-				var parsed = Parse.typeDeclaration( parse );
-				//console.log( "dec", parsed, parsed.input );
-				declareType( parsed );
+				try {
+					var parsed = Parse.typeDeclaration( parse );
+					declareType( parsed );
+				} catch ( parseError ) {
+					warn( parseError );
+				}
 			});
 
 			//
@@ -188,19 +196,44 @@ function Compiler () {
 		var ret = [];
 
 		var fileName = include.file;
+		var extname = path.extname( fileName );
+		var basename = path.basename( fileName, extname );
+		var dirname = path.dirname( fileName );
+
+
 		var quoteType = include.quoteType;
 
 		// Current directory
-		add( path.resolve( dir, fileName ) );
+		
+		if ( include.quoteType == '"') {
+			add( path.resolve( dir, fileName ) );
+
+			Environment.lib.forEach( function ( libDir ) {
+				add( path.resolve( libDir, basename, basename+extname ) );
+			});
+
+		}
+		
 		// TODO: Add other directories, most importantly Documents/Arduino/libraries
 
 		return ret;
 
 		function add( tryFile ) {
+			log( "possibleIncludeFiles.add", tryFile );
 			ret.push( tryFile )
 		}
 	}
 
+	//
+	//	Logging
+	//
+	function log () {
+		console.log.apply( console, arguments );
+	}
+
+	function warn () {
+		console.log.apply( console, arguments );
+	}
 
 	//
 	//	Compilers
@@ -227,9 +260,15 @@ function Compiler () {
 			if ( dec.groupType )
 				break;
 
+			if ( dec.primitive ) {
+				//console.log( "IS PRIMITIVE", dec );
+				return typeCompiled[ dec.typeName ];
+				break;
+			}
+
 			if ( dec.type ) {
 				dec = dec.type;
-				break;
+				continue;
 			}
 		
 			if ( dec.typeName ) {
@@ -261,7 +300,7 @@ function Compiler () {
 			return type;
 		}
 
-		console.log( "Can't compile type", dec );
+		console.log( "Can't compile type", dec, _.keys( typeDeclaration ) );
 
 		return CompileError( "Type format not compiled" );
 	}

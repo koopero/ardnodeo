@@ -224,6 +224,75 @@ describe( "RegionList", function () {
 		});
 	});
 
+	describe('start', function () {
+		it('should return undefined on empty list', function () {
+			var list = new RegionList();
+			assert.equal( list.start(), undefined );
+		});
+
+		it('should return the start of an entire list', function () {
+			var list = new RegionList();
+			list.add( 10, 20 );
+
+			assert.equal( list.start(), 10 );
+		});
+
+		it('should return the start of a region, relative to the start of the list', function () {
+			var list = new RegionList();
+			list.add( 10, 20 );
+			list.add( 30, 40 );
+			list.add( 50, 60 );
+
+			assert.equal( list.start( 1 ), 30 );
+			assert.equal( list.start( 2 ), 50 );
+		});
+
+
+		it('should return the start of a region, relative to the end of the list', function () {
+			var list = new RegionList();
+			list.add( 10, 20 );
+			list.add( 30, 40 );
+			list.add( 50, 60 );
+
+			assert.equal( list.start( -1 ), 50 );
+			assert.equal( list.start( -2 ), 30 );
+		});
+
+	});
+
+	describe('end', function () {
+		it('should return undefined on empty list', function () {
+			var list = new RegionList();
+			assert.equal( list.end(), undefined );
+		});
+
+		it('should return the end of an entire list', function () {
+			var list = new RegionList();
+			list.add( 10, 20 );
+			list.add( 30, 40 );
+
+
+			assert.equal( list.end(), 40 );
+		});
+	});
+
+	describe('intersects', function () {
+		it('should work with a single offset', function () {
+			var list = new RegionList();
+			list.add( 10, 20 );
+			list.add( 30, 40 );
+
+			assert( !list.intersects(  9 ) );
+			assert(  list.intersects( 10 ) );
+			assert(  list.intersects( 15 ) );
+			assert( !list.intersects( 20 ) );
+
+			assert(  list.intersects( 30 ) );
+			assert( !list.intersects( 40 ) );
+
+		});
+	});
+
 	xdescribe("#indexAt", function () {
 		it('should return undefined when the list is empty', function () {
 			var list = new RegionList();

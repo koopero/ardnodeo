@@ -30,7 +30,7 @@ const REGEX = {
 	whitespace: /^\s+/,
 	memberName: /[a-zA-Z_]+[a-zA-Z0-9]*/,
 	arrayDimensions: /^(\[.*\])*/,
-	endLine: /^\s*;(\s*\/\/\s*(.*)\s*$)?/m,
+	endLine: /^\s*;([^\S\n]*\/\/\s*(.*)\s*$)?/m,
 
 	ArdnodeoData: /ArdnodeoData\s*<\s*([a-zA-Z_]+[a-zA-Z0-9_]*)\s*>\s*\((.*?)\)/
 }

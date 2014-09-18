@@ -2,22 +2,26 @@ module.exports = RegionList;
 
 function RegionList () {
 	var self = this;
-	var list = [];
+	//var list = [];
+
+	var starts = [],
+		ends = [];
 
 	Object.defineProperty( self, 'length', {
 		get: getLength
 	});
 
-	self.list = list;
+	//self.list = list;
 	self.indexAt = indexAt;
 	self.add = add;
 	self.remove = remove;
 	self.start = start;
 	self.end = end;
+	self.intersects = intersects;
 	self.forEach = forEach;
 
 	function getLength () {
-		return list.length / 2;
+		return starts.length;
 	}
 
 	function indexAt ( pos ) {
@@ -47,8 +51,8 @@ function RegionList () {
 
 		for ( startIndex = 0; startIndex < k; startIndex ++ ) {
 			var 
-				iStart = start(startIndex),
-				iEnd   = end(startIndex)
+				iStart = starts[startIndex],
+				iEnd   = ends[startIndex]
 			;
 
 			debug( '<', startIndex, iStart, iEnd );
@@ -60,8 +64,8 @@ function RegionList () {
 
 		if ( startIndex == k ) {
 			debug( "bail 1");
-			list.push( aStart );
-			list.push( aEnd );
+			starts.push( aStart );
+			ends.push( aEnd );
 			return startIndex;
 		}
 
@@ -70,8 +74,8 @@ function RegionList () {
 
 		for ( endIndex = startIndex; endIndex < k; endIndex ++ ) {
 			var 
-				iStart = start(endIndex),
-				iEnd   = end(endIndex)
+				iStart = starts[endIndex],
+				iEnd   = ends[endIndex]
 			;
 
 			debug( '>', endIndex, iStart, iEnd );
@@ -83,7 +87,9 @@ function RegionList () {
 			if ( iStart > aEnd ) {
 				debug( "bail 2", startIndex, endIndex );
 				//break;
-				list.splice( startIndex * 2, ( endIndex - startIndex ) * 2, aStart, aEnd )
+				starts.splice( startIndex, endIndex-startIndex, aStart );
+				ends.splice( startIndex, endIndex-startIndex, aEnd );
+
 				return startIndex;
 			}
 		}
@@ -93,15 +99,19 @@ function RegionList () {
 		debug( 'k', k )
 
 		if ( startIndex < endIndex ) {
-			debug( "slicing", list );
-			list.splice( startIndex * 2 + 1, ( endIndex - startIndex - 1 ) * 2 );
+			//debug( "slicing", list );
+			//starts.splice( startIndex, )
+			starts.splice( startIndex+1, endIndex - startIndex - 1 );
+			ends.splice( startIndex, endIndex - startIndex - 1 );
+			
+			//list.splice( startIndex * 2 + 1, ( endIndex - startIndex - 1 ) * 2 );
 			endIndex = startIndex;
 			k = getLength();
 		}
 
 
-		list[ endIndex * 2 ] = Math.min( aStart, list[ endIndex * 2 ] );
-		list[ endIndex * 2 + 1 ] = Math.max( aEnd, list[ endIndex * 2 + 1 ] );
+		starts[ endIndex ] = Math.min( aStart, starts[ endIndex ] );
+		ends[ endIndex ] = Math.max( aEnd, ends[ endIndex ] );
 
 		return endIndex;
 	}
@@ -124,8 +134,8 @@ function RegionList () {
 
 		for ( index = 0; index < k; index ++ ) {
 			var 
-				iStart = start(index),
-				iEnd   = end(index)
+				iStart = starts[index],
+				iEnd   = ends[index]
 			;
 
 			debug( '<', index, iStart, iEnd );
@@ -136,12 +146,15 @@ function RegionList () {
 
 			if ( aStart > iStart && aEnd < iEnd ) {
 				debug( 'bail on split' );
-				list.splice( index * 2 + 1, 0, aStart, aEnd );
+				starts.splice( index + 1, 0, aEnd );
+				ends.splice( index, 0, aStart ); 
+				//list.splice( index * 2 + 1, 0, aStart, aEnd );
 				return;
 			}
 
 			if ( aStart <= iStart && aEnd >= iEnd ) {
-				list.splice( index * 2, 2 );
+				starts.splice( index, 1 );
+				ends.splice( index, 1 );
 				index --;
 				k = getLength();
 				continue;
@@ -150,13 +163,13 @@ function RegionList () {
 			if ( aEnd > iStart && aEnd < iEnd ) {
 				debug( 'bail left' );
 				
-				list[ index * 2 ] = aEnd;
+				starts[ index ] = aEnd;
 				break;
 			} 
 
 			if ( iEnd > aStart ) {
 				debug( 'bail right' );
-				list[ index * 2 + 1 ] = aStart;
+				ends[ index ] = aStart;
 				break;
 			}
 			
@@ -170,6 +183,23 @@ function RegionList () {
 
 	}
 
+	function intersects ( start, end ) {
+		var k = getLength();
+
+		for ( var i = 0; i < k; i ++ ) {
+			var 
+				iStart = starts[i],
+				iEnd = ends[i]
+			;
+
+			if ( start >= iStart && start < iEnd )
+				return true;
+
+		}
+
+		return false;
+	}
+
 	function debug () {
 		if ( self.debug )
 			console.log.apply( console, arguments );
@@ -177,18 +207,30 @@ function RegionList () {
 
 
 	function start ( index ) {
-		return list[index * 2];
+		if ( index === undefined )
+			index = 0;
+
+		if ( index < 0 )
+			index += getLength();
+
+		return starts[index];
 	}
 
 	function end ( index ) {
-		return list[index * 2+1];
+		if ( index === undefined )
+			index = -1;
+
+		if ( index < 0 )
+			index += getLength();
+
+		return ends[index];
 	}
 
 	function forEach ( callback ) {
 		var k = getLength();
 		
 		for ( var i = 0; i < k; i ++ ) {
-			callback( start( i ), end( i ), i );
+			callback( starts[ i ], ends[i], i );
 		};
 	}
 

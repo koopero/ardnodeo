@@ -94,23 +94,26 @@ function Ardnodeo ( opt ) {
 		compiler.loadSource( file );
 
 		var mainTypeName = compiler.mainTypeName;
-		var mainType = compiler.compileType( mainTypeName );
-		//console.log( 'mainTypeName',mainTypeName);
-		//console.log( 'mainType',mainType);
 
-		var varOpt = {};
-		varOpt.type = mainType;
-		varOpt.offset = 0;
+		if ( mainTypeName ) {
+			var mainType = compiler.compileType( mainTypeName );
+			//console.log( 'mainTypeName',mainTypeName);
+			//console.log( 'mainType',mainType);
 
-		var mainVariable = new Variable( varOpt );
-		//console.log( "mainVariable", mainVariable );
+			var varOpt = {};
+			varOpt.type = mainType;
+			varOpt.offset = 0;
 
-		var members = mainVariable.flatten( { includeSelf: false });
-		_variables = members;
-		blessVariables();
-		__publicProperty('vars', _variables );
+			var mainVariable = new Variable( varOpt );
+			//console.log( "mainVariable", mainVariable );
 
-		members.printPretty();
+			var members = mainVariable.flatten( { includeSelf: false });
+			_variables = members;
+			blessVariables();
+			__publicProperty('vars', _variables );
+
+			members.printPretty();
+		}
 		
 
 
@@ -135,7 +138,6 @@ function Ardnodeo ( opt ) {
 			memorySize = Math.max( memorySize, variable.end );
 		});
 
-		console.log( "memorySize", memorySize );
 		growMemory( memorySize );
 
 		_variables.forEach( function ( variable ) {
@@ -168,6 +170,11 @@ function Ardnodeo ( opt ) {
 
 				return variable.read( self.memory, args );
 			};
+
+			Object.defineProperty( variable, 'value', {
+				get: variable.get,
+				set: variable.set
+			});
 
 
 		});
@@ -333,21 +340,26 @@ function Ardnodeo ( opt ) {
 			_receiveCommand = Protocol.poke;
 		});
 		receiveBuffer( Protocol.poke, inputBuffer, function ( err ) {
+
 			if ( bufferSliceIsDifferent( self.memory, offset, inputBuffer ) ) {
-				
+
 				growMemory( offset + inputBuffer.length );
 				inputBuffer.copy( self.memory, offset );
-				var variable = varAtOffset( offset );
-				if ( variable ) {
+
+				_variables.forEach ( function ( variable, name ) {
 					if ( variable.listeners('change').length ) {
-						var index = variable.offsetIndex( offset );
-						variable.emit( 
+						var index = variable.indexAtOffset( offset );
+						if ( !index )
+							return;
+
+						variable.emit(
 							'change',
-							variable.readLocal( index ),
+							variable.get( index ),
 							index
 						);
 					}
-				}
+				});
+				
 			};
 
 
@@ -579,18 +591,6 @@ function Ardnodeo ( opt ) {
 		variable.readLocal = varReadLocal.bind( self, varName );
 
 		growMemory( variable.offset + variable.size );
-	}
-
-	commands.varAtOffset = varAtOffset;
-	function varAtOffset( offset ) {
-		for ( var varName in _variables ) {
-			var variable = _variables[varName];
-			if ( 
-				variable.offset <= offset 
-				&& variable.offset + variable.size > offset 
-			)
-				return variable;
-		}
 	}
 
 	function growMemory ( length ) {
